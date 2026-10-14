@@ -22,7 +22,7 @@ function landform(x: number, z: number): number {
 }
 
 function canopy(x: number, z: number): number {
-	const clear = smoothstep(55, 95, Math.hypot(x - SUMMIT.x, z - SUMMIT.z));
+	const clear = smoothstep(55, 95, Math.hypot(x - SUMMIT.x, z - SUMMIT.z)) * (0.25 + 0.75 * smoothstep(180, 520, Math.hypot(x, z)));
 	const w = worley(x / 9, z / 9, 21);
 	const crown = Math.max(1 - w.f1 * w.f1 * 1.25, 0);
 	return (8 + crown * crown * (3 - 2 * crown) * 6 + w.id * 3) * clear;
@@ -40,7 +40,7 @@ export function buildHillStation(): BuiltScene {
 		glowExp: 2,
 		fogDensity: 0.0006,
 		fogFalloff: 0.0032,
-		ambientSky: rgb(0.03, 0.028, 0.038),
+		ambientSky: rgb(0.05, 0.045, 0.06),
 		ambientGround: rgb(0.008, 0.008, 0.008),
 		lightScatter: 1,
 		phaseG: 0.55,
@@ -105,9 +105,10 @@ export function buildHillStation(): BuiltScene {
 	const lights: SceneLight[] = [
 		{ position: new Vector3(SUMMIT.x - 22, top + 5, SUMMIT.z + 34), color: sodium, intensity: 9000, pattern: flicker(0.03, 1), sprite: { size: 4, brightness: 420 }, spot: { target: aBase.clone().add(new Vector3(0, 30, 0)), angle: 0.75 } },
 		{ position: new Vector3(SUMMIT.x + 18, top + 6, SUMMIT.z + 26), color: sodium, intensity: 7000, pattern: steady, sprite: { size: 4, brightness: 380 }, spot: { target: new Vector3(SUMMIT.x, top + 12, SUMMIT.z), angle: 0.9 } },
-		{ position: new Vector3(SUMMIT.x + 60, top + 4, SUMMIT.z - 6), color: kelvin(2300), intensity: 6000, pattern: steady, sprite: { size: 3.5, brightness: 300 }, spot: { target: bBase.clone().add(new Vector3(0, 35, 0)), angle: 0.7 } },
+		{ position: new Vector3(SUMMIT.x + 60, top + 4, SUMMIT.z - 6), color: kelvin(2300), intensity: 4200, pattern: steady, sprite: { size: 3.5, brightness: 300 }, spot: { target: bBase.clone().add(new Vector3(0, 35, 0)), angle: 0.95 } },
 		{ position: new Vector3(SUMMIT.x - 66, top + 4, SUMMIT.z + 42), color: sodium, intensity: 2600, pattern: steady, sprite: { size: 3.5, brightness: 300 } },
 		{ position: new Vector3(SUMMIT.x - 5, top + 3, SUMMIT.z + 50), color: kelvin(4200), intensity: 900, pattern: steady, sprite: { size: 3, brightness: 200 } },
+		{ position: new Vector3(SUMMIT.x + 30, top + 7, SUMMIT.z + 18), color: sodium, intensity: 2200, pattern: steady },
 		{ position: aBase.clone().add(new Vector3(0, 71, 0)), color: rgb(1, 0.05, 0.02), intensity: 380, pattern: breathe(3.2, 0.25), sprite: { size: 6, brightness: 900 } },
 		{ position: aBase.clone().add(new Vector3(0, 36, 0)), color: rgb(1, 0.05, 0.02), intensity: 120, pattern: steady, sprite: { size: 4, brightness: 300 } },
 		{ position: bBase.clone().add(new Vector3(0, 87, 0)), color: rgb(1, 0.05, 0.02), intensity: 420, pattern: flash(2.6, 1.2, 0.7), sprite: { size: 6, brightness: 900 } },

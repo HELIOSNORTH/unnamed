@@ -18,11 +18,11 @@ function height(x: number, z: number): number {
 export function buildBeacon(): BuiltScene {
 	const scene = new Scene();
 	const atmos = createAtmosphereUniforms({
-		fogLow: rgb(0.026, 0.016, 0.045),
+		fogLow: rgb(0.02, 0.0135, 0.04),
 		fogHigh: rgb(0.003, 0.0055, 0.022),
-		glowColor: rgb(0.02, 0.008, 0.02),
+		glowColor: rgb(0.032, 0.01, 0.03),
 		glowDir: new Vector3(-0.3, 0.02, -1),
-		glowExp: 3,
+		glowExp: 9,
 		fogDensity: 0.00026,
 		fogFalloff: 0.0035,
 		ambientSky: rgb(0.012, 0.013, 0.034),
@@ -37,7 +37,7 @@ export function buildBeacon(): BuiltScene {
 		horizon: rgb(0.01, 0.008, 0.026),
 		curve: 0.45
 	});
-	addStars(scene, atmos, 10000, 1.6, 11);
+	addStars(scene, atmos, 15000, 2.2, 11);
 
 	const ground = new Mesh(
 		polarTerrain({ center: [0, 0], span: 1.6, rMin: 2, rMax: 14000, rings: 340, segments: 260, height }),
