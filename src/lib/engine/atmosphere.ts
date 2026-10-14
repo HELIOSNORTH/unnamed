@@ -47,6 +47,7 @@ export function createAtmosphereUniforms(s: AtmosphereSettings): AtmosphereUnifo
 		uLightPos: { value: Array.from({ length: MAX_LIGHTS }, () => new Vector3()) },
 		uLightCol: { value: Array.from({ length: MAX_LIGHTS }, () => new Vector3()) },
 		uLightSurf: { value: new Array(MAX_LIGHTS).fill(1) },
+		uLightRange: { value: new Array(MAX_LIGHTS).fill(0) },
 		uLightSpot: { value: Array.from({ length: MAX_LIGHTS }, () => new Vector4(0, -1, 0, -2)) },
 		uLightCount: { value: 0 },
 		uLightScatter: { value: s.lightScatter ?? 1 },
@@ -78,6 +79,7 @@ uniform vec3 uAmbientGround;
 uniform vec3 uLightPos[MAX_LIGHTS];
 uniform vec3 uLightCol[MAX_LIGHTS];
 uniform float uLightSurf[MAX_LIGHTS];
+uniform float uLightRange[MAX_LIGHTS];
 uniform vec4 uLightSpot[MAX_LIGHTS];
 uniform int uLightCount;
 uniform float uLightScatter;
@@ -198,6 +200,13 @@ float spotFactor(int i, vec3 fromLight) {
 	return smoothstep(sp.w, sp.w + (1.0 - sp.w) * 0.45, c);
 }
 
+float rangeFactor(int i, float d2) {
+	float r = uLightRange[i];
+	if (r <= 0.0) return 1.0;
+	float q = clamp(1.0 - (d2 * d2) / (r * r * r * r), 0.0, 1.0);
+	return q * q;
+}
+
 vec3 pointScatter(vec3 ro, vec3 rd, float t) {
 	vec3 acc = vec3(0.0);
 	for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -256,7 +265,7 @@ vec3 pointLighting(vec3 p, vec3 n, float wrap) {
 		vec3 L = uLightPos[i] - p;
 		float d2 = dot(L, L);
 		float ndl = (dot(n, L * inversesqrt(d2)) + wrap) / (1.0 + wrap);
-		acc += uLightCol[i] * (uLightSurf[i] * spotFactor(i, -L) * max(ndl, 0.0) / (d2 + 1.0));
+		acc += uLightCol[i] * (uLightSurf[i] * spotFactor(i, -L) * rangeFactor(i, d2) * max(ndl, 0.0) / (d2 + 1.0));
 	}
 	return acc;
 }

@@ -4,6 +4,7 @@ import { pointsGeometry, ribbonGeometry, starField, type Segment } from './geome
 import type { SceneLight } from './lights.ts';
 import { createPointsMaterial, createRibbonMaterial, createSkyMaterial, type RibbonSettings, type SkySettings } from './materials.ts';
 import type { Grade } from './post.ts';
+import type { VolumeSettings } from './volumetrics.ts';
 import type { Shot } from './rig.ts';
 
 export interface BuiltScene {
@@ -13,6 +14,7 @@ export interface BuiltScene {
 	grade: Grade;
 	lights: SceneLight[];
 	windiness: number;
+	volume?: VolumeSettings;
 	update?: (t: number, levels: number[]) => void;
 }
 
@@ -42,13 +44,13 @@ export function addRibbons(scene: Scene, atmos: AtmosphereUniforms, segs: Segmen
 	return m;
 }
 
-export function addLightSprites(scene: Scene, atmos: AtmosphereUniforms, lights: SceneLight[], halo = 0.5): (levels: number[]) => void {
+export function addLightSprites(scene: Scene, atmos: AtmosphereUniforms, lights: SceneLight[], halo = 0.5, spikes = 0): (levels: number[]) => void {
 	const withSprites = lights.filter((l) => l.sprite);
 	if (!withSprites.length) return () => {};
 	const geo = pointsGeometry(
 		withSprites.map((l) => ({ p: l.position, color: [l.color.r, l.color.g, l.color.b] as [number, number, number], size: l.sprite!.size }))
 	);
-	const pts = new Points(geo, createPointsMaterial(atmos, { halo }));
+	const pts = new Points(geo, createPointsMaterial(atmos, { halo, spikes }));
 	pts.frustumCulled = false;
 	pts.renderOrder = 10;
 	scene.add(pts);

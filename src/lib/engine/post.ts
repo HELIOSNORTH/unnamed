@@ -1,22 +1,29 @@
 import {
+	AddEquation,
 	BufferGeometry,
-	Camera,
+	CanvasTexture,
 	Color,
+	CustomBlending,
+	DepthTexture,
 	Float32BufferAttribute,
 	HalfFloatType,
 	LinearFilter,
 	Mesh,
 	OneFactor,
 	OrthographicCamera,
-	CustomBlending,
-	AddEquation,
 	Scene,
 	ShaderMaterial,
 	Vector2,
 	Vector3,
 	WebGLRenderTarget,
+	type PerspectiveCamera,
+	type Texture,
 	type WebGLRenderer
 } from 'three';
+import { mulberry32 } from './noise.ts';
+import { createCloudNoise } from './noise3d.ts';
+import { Volume, type VolumeSettings } from './volumetrics.ts';
+import type { AtmosphereUniforms } from './atmosphere.ts';
 
 export interface Grade {
 	exposure: number;
@@ -30,6 +37,12 @@ export interface Grade {
 	grain: number;
 	vignette: number;
 	aberration: number;
+	flare?: number;
+	dirt?: number;
+	distortion?: number;
+	softness?: number;
+	grainSize?: number;
+	weave?: number;
 }
 
 const fullscreenVert = /* glsl */ `
@@ -76,10 +89,56 @@ const upsampleFrag = /* glsl */ `
 	}
 `;
 
+const combineFrag = /* glsl */ `
+	uniform sampler2D tScene;
+	uniform sampler2D tVolume;
+	varying vec2 vUv;
+	void main() {
+		vec4 v = texture2D(tVolume, vUv);
+		gl_FragColor = vec4(texture2D(tScene, vUv).rgb * v.a + v.rgb, 1.0);
+	}
+`;
+
+const flareFrag = /* glsl */ `
+	uniform sampler2D tSrc;
+	uniform float uThreshold;
+	uniform float uAspect;
+	varying vec2 vUv;
+	vec3 bright(vec2 uv) {
+		vec3 c = texture2D(tSrc, uv).rgb;
+		float l = max(c.r, max(c.g, c.b));
+		return c * max(l - uThreshold, 0.0) / max(l, 1e-4);
+	}
+	vec3 dispersed(vec2 uv, vec2 dir, float k) {
+		return vec3(bright(uv + dir * k).r, bright(uv).g, bright(uv - dir * k).b);
+	}
+	void main() {
+		vec2 uv = 1.0 - vUv;
+		vec2 gv = (0.5 - uv) * 0.42;
+		vec2 dir = normalize(gv + 1e-5);
+		vec3 acc = vec3(0.0);
+		for (int i = 1; i < 6; i++) {
+			vec2 o = uv + gv * float(i);
+			float r = length((0.5 - o) * vec2(uAspect, 1.0)) / 0.9;
+			float w = pow(max(1.0 - r, 0.0), 5.0);
+			vec3 tint = mix(vec3(1.0, 0.72, 0.45), vec3(0.45, 0.75, 1.0), fract(float(i) * 0.37));
+			acc += dispersed(o, dir, 0.004 * float(i)) * w * tint;
+		}
+		vec2 hv = dir * vec2(1.0 / uAspect, 1.0) * 0.36;
+		vec2 ho = uv + hv;
+		float hr = length((0.5 - ho) * vec2(uAspect, 1.0)) / 0.9;
+		acc += dispersed(ho, dir, 0.012) * pow(max(1.0 - hr, 0.0), 4.0) * 0.5;
+		gl_FragColor = vec4(acc, 1.0);
+	}
+`;
+
 const compositeFrag = /* glsl */ `
 	uniform sampler2D tScene;
 	uniform sampler2D tBloom;
+	uniform sampler2D tFlare;
+	uniform sampler2D tDirt;
 	uniform vec2 uResolution;
+	uniform vec2 uTexel;
 	uniform float uTime;
 	uniform float uFade;
 	uniform float uExposure;
@@ -91,8 +150,14 @@ const compositeFrag = /* glsl */ `
 	uniform float uBloom;
 	uniform float uHalation;
 	uniform float uGrain;
+	uniform float uGrainSize;
 	uniform float uVignette;
 	uniform float uAberration;
+	uniform float uFlare;
+	uniform float uDirt;
+	uniform float uDistortion;
+	uniform float uSoftness;
+	uniform float uWeave;
 	varying vec2 vUv;
 
 	const mat3 SRGB_TO_REC2020 = mat3(vec3(0.6274, 0.0691, 0.0164), vec3(0.3293, 0.9195, 0.0880), vec3(0.0433, 0.0113, 0.8956));
@@ -139,18 +204,33 @@ const compositeFrag = /* glsl */ `
 		return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
 	}
 
+	vec3 sceneAt(vec2 uv, vec2 ca) {
+		vec3 c;
+		c.r = texture2D(tScene, uv - ca).r;
+		c.g = texture2D(tScene, uv).g;
+		c.b = texture2D(tScene, uv + ca).b;
+		return c;
+	}
+
 	void main() {
-		vec2 uv = vUv;
-		vec2 dc = uv - 0.5;
+		float frame = floor(uTime * 24.0);
+		vec2 weave = (vec2(h12(vec2(frame, 1.7)), h12(vec2(frame, 9.1))) - 0.5) * uWeave * uTexel * 2.0;
+		vec2 dc = vUv - 0.5;
 		float r2 = dot(dc, dc);
+		vec2 uv = 0.5 + dc * (1.0 - uDistortion * r2) / (1.0 - uDistortion * 0.25) * (1.0 - uDistortion * 0.05) + weave;
 		vec2 ca = dc * r2 * uAberration;
-		vec3 hdr;
-		hdr.r = texture2D(tScene, uv - ca).r;
-		hdr.g = texture2D(tScene, uv).g;
-		hdr.b = texture2D(tScene, uv + ca).b;
+
+		vec3 hdr = sceneAt(uv, ca);
+		if (uSoftness > 0.0) {
+			vec2 o = uTexel * (0.75 + uSoftness);
+			vec3 blur = sceneAt(uv + vec2(o.x, 0.0), ca) + sceneAt(uv - vec2(o.x, 0.0), ca) + sceneAt(uv + vec2(0.0, o.y), ca) + sceneAt(uv - vec2(0.0, o.y), ca);
+			hdr = mix(hdr, blur * 0.25, clamp(uSoftness, 0.0, 1.0) * 0.8);
+		}
 		vec3 bloom = texture2D(tBloom, uv).rgb / 7.0;
+		vec3 dirt = texture2D(tDirt, uv).rgb;
 		vec3 halo = bloom * mix(vec3(1.0), vec3(1.35, 0.62, 0.42), uHalation);
-		hdr = mix(hdr, halo, uBloom);
+		hdr = mix(hdr, halo * (1.0 + dirt * uDirt), uBloom);
+		hdr += texture2D(tFlare, uv).rgb * uFlare * (0.35 + dirt * 2.5);
 
 		float aspect = uResolution.x / uResolution.y;
 		vec2 vq = dc * vec2(aspect, 1.0) / sqrt(aspect * aspect + 1.0) * 2.0;
@@ -165,8 +245,7 @@ const compositeFrag = /* glsl */ `
 		c = clamp(0.3 * pow(c / 0.3, vec3(uContrast)), 0.0, 1.0);
 		c = pow(max(c * uGain + uLift * (1.0 - c), 0.0), 1.0 / uGamma);
 
-		float frame = floor(uTime * 24.0);
-		vec2 gp = gl_FragCoord.xy / 1.35;
+		vec2 gp = gl_FragCoord.xy / uGrainSize;
 		float n0 = grainNoise(gp, frame) + grainNoise(gp * 1.9 + 3.7, frame + 0.5) - 1.0;
 		vec3 nc = vec3(grainNoise(gp + 11.0, frame), grainNoise(gp + 23.0, frame), grainNoise(gp + 37.0, frame)) - 0.5;
 		vec3 n = vec3(n0) + nc * 0.18;
@@ -190,63 +269,114 @@ function fullscreenTriangle(): BufferGeometry {
 	return g;
 }
 
+function lensDirt(): Texture {
+	const size = 1024;
+	const canvas = document.createElement('canvas');
+	canvas.width = canvas.height = size;
+	const ctx = canvas.getContext('2d')!;
+	ctx.fillStyle = '#000';
+	ctx.fillRect(0, 0, size, size);
+	const rand = mulberry32(2026);
+	ctx.globalCompositeOperation = 'lighter';
+	const spot = (x: number, y: number, r: number, a: number, ring: boolean) => {
+		const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+		if (ring) {
+			g.addColorStop(0, `rgba(255,250,240,${a * 0.35})`);
+			g.addColorStop(0.82, `rgba(255,250,240,${a * 0.5})`);
+			g.addColorStop(1, 'rgba(255,250,240,0)');
+		} else {
+			g.addColorStop(0, `rgba(255,252,245,${a})`);
+			g.addColorStop(1, 'rgba(255,252,245,0)');
+		}
+		ctx.fillStyle = g;
+		ctx.beginPath();
+		ctx.arc(x, y, r, 0, Math.PI * 2);
+		ctx.fill();
+	};
+	for (let i = 0; i < 70; i++) spot(rand() * size, rand() * size, 20 + rand() * 90, 0.04 + rand() * 0.07, rand() < 0.4);
+	for (let i = 0; i < 500; i++) spot(rand() * size, rand() * size, 1.5 + rand() * 6, 0.05 + rand() * 0.25, false);
+	ctx.globalAlpha = 0.05;
+	ctx.strokeStyle = '#fff';
+	for (let i = 0; i < 14; i++) {
+		ctx.lineWidth = 6 + rand() * 20;
+		ctx.beginPath();
+		const x = rand() * size;
+		const y = rand() * size;
+		ctx.moveTo(x, y);
+		ctx.bezierCurveTo(x + rand() * 300 - 150, y + rand() * 300 - 150, x + rand() * 300 - 150, y + rand() * 300 - 150, x + rand() * 400 - 200, y + rand() * 400 - 200);
+		ctx.stroke();
+	}
+	const tex = new CanvasTexture(canvas);
+	tex.minFilter = LinearFilter;
+	tex.magFilter = LinearFilter;
+	return tex;
+}
+
 export class Pipeline {
 	private sceneRT: WebGLRenderTarget;
+	private combineRT: WebGLRenderTarget;
+	private flareRT: WebGLRenderTarget;
 	private mips: WebGLRenderTarget[] = [];
 	private quad: Mesh;
 	private quadScene = new Scene();
 	private quadCam = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	private down: ShaderMaterial;
 	private up: ShaderMaterial;
+	private combine: ShaderMaterial;
+	private flare: ShaderMaterial;
 	readonly composite: ShaderMaterial;
+	private volume: Volume;
+	private dirt: Texture;
 	private size = new Vector2();
 	private readonly levels = 7;
 
 	constructor(private renderer: WebGLRenderer) {
 		const rtOpts = { type: HalfFloatType, minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false };
-		this.sceneRT = new WebGLRenderTarget(4, 4, { type: HalfFloatType, samples: 4, depthBuffer: true });
+		this.sceneRT = new WebGLRenderTarget(4, 4, { type: HalfFloatType, samples: 4, depthBuffer: true, depthTexture: new DepthTexture(4, 4) });
+		this.combineRT = new WebGLRenderTarget(4, 4, rtOpts);
+		this.flareRT = new WebGLRenderTarget(4, 4, rtOpts);
 		for (let i = 0; i < this.levels; i++) this.mips.push(new WebGLRenderTarget(4, 4, rtOpts));
-		this.down = new ShaderMaterial({
-			uniforms: { tSrc: { value: null }, uTexel: { value: new Vector2() }, uKaris: { value: 0 } },
-			vertexShader: fullscreenVert,
-			fragmentShader: downsampleFrag,
-			depthTest: false,
-			depthWrite: false
-		});
-		this.up = new ShaderMaterial({
-			uniforms: { tSrc: { value: null }, uTexel: { value: new Vector2() }, uRadius: { value: 1 }, uWeight: { value: 1 } },
-			vertexShader: fullscreenVert,
-			fragmentShader: upsampleFrag,
-			depthTest: false,
-			depthWrite: false,
-			blending: CustomBlending,
-			blendEquation: AddEquation,
-			blendSrc: OneFactor,
-			blendDst: OneFactor
-		});
-		this.composite = new ShaderMaterial({
-			uniforms: {
-				tScene: { value: null },
-				tBloom: { value: null },
-				uResolution: { value: new Vector2() },
-				uTime: { value: 0 },
-				uFade: { value: 0 },
-				uExposure: { value: 1 },
-				uLift: { value: new Vector3() },
-				uGamma: { value: new Vector3(1, 1, 1) },
-				uGain: { value: new Vector3(1, 1, 1) },
-				uSaturation: { value: 1 },
-				uContrast: { value: 1 },
-				uBloom: { value: 0.04 },
-				uHalation: { value: 0.3 },
-				uGrain: { value: 0.04 },
-				uVignette: { value: 0.5 },
-				uAberration: { value: 0.004 }
-			},
-			vertexShader: fullscreenVert,
-			fragmentShader: compositeFrag,
-			depthTest: false,
-			depthWrite: false
+		this.volume = new Volume(createCloudNoise(64));
+		this.dirt = lensDirt();
+		const material = (fragmentShader: string, uniforms: Record<string, { value: unknown }>, additive = false) =>
+			new ShaderMaterial({
+				uniforms,
+				vertexShader: fullscreenVert,
+				fragmentShader,
+				depthTest: false,
+				depthWrite: false,
+				...(additive ? { blending: CustomBlending, blendEquation: AddEquation, blendSrc: OneFactor, blendDst: OneFactor } : {})
+			});
+		this.down = material(downsampleFrag, { tSrc: { value: null }, uTexel: { value: new Vector2() }, uKaris: { value: 0 } });
+		this.up = material(upsampleFrag, { tSrc: { value: null }, uTexel: { value: new Vector2() }, uRadius: { value: 1 }, uWeight: { value: 1 } }, true);
+		this.combine = material(combineFrag, { tScene: { value: null }, tVolume: { value: null } });
+		this.flare = material(flareFrag, { tSrc: { value: null }, uThreshold: { value: 3 }, uAspect: { value: 1 } });
+		this.composite = material(compositeFrag, {
+			tScene: { value: null },
+			tBloom: { value: null },
+			tFlare: { value: this.flareRT.texture },
+			tDirt: { value: this.dirt },
+			uResolution: { value: new Vector2() },
+			uTexel: { value: new Vector2() },
+			uTime: { value: 0 },
+			uFade: { value: 0 },
+			uExposure: { value: 1 },
+			uLift: { value: new Vector3() },
+			uGamma: { value: new Vector3(1, 1, 1) },
+			uGain: { value: new Vector3(1, 1, 1) },
+			uSaturation: { value: 1 },
+			uContrast: { value: 1 },
+			uBloom: { value: 0.04 },
+			uHalation: { value: 0.3 },
+			uGrain: { value: 0.04 },
+			uGrainSize: { value: 1.35 },
+			uVignette: { value: 0.5 },
+			uAberration: { value: 0.004 },
+			uFlare: { value: 0 },
+			uDirt: { value: 0 },
+			uDistortion: { value: 0 },
+			uSoftness: { value: 0 },
+			uWeave: { value: 0 }
 		});
 		this.quad = new Mesh(fullscreenTriangle(), this.down);
 		this.quad.frustumCulled = false;
@@ -256,6 +386,8 @@ export class Pipeline {
 	setSize(width: number, height: number): void {
 		this.size.set(width, height);
 		this.sceneRT.setSize(width, height);
+		this.combineRT.setSize(width, height);
+		this.volume.setSize(width, height);
 		let w = width;
 		let h = height;
 		for (const m of this.mips) {
@@ -263,37 +395,54 @@ export class Pipeline {
 			h = Math.max(1, Math.floor(h / 2));
 			m.setSize(w, h);
 		}
+		this.flareRT.setSize(this.mips[1].width, this.mips[1].height);
+		this.flare.uniforms.uAspect.value = width / height;
 	}
 
-	setGrade(g: Grade): void {
+	setScene(grade: Grade, atmos: AtmosphereUniforms, volume: VolumeSettings | undefined): void {
 		const u = this.composite.uniforms;
-		u.uExposure.value = g.exposure;
-		u.uLift.value.set(g.lift.r, g.lift.g, g.lift.b);
-		u.uGamma.value.set(g.gamma.r, g.gamma.g, g.gamma.b);
-		u.uGain.value.set(g.gain.r, g.gain.g, g.gain.b);
-		u.uSaturation.value = g.saturation;
-		u.uContrast.value = g.contrast;
-		u.uBloom.value = g.bloom;
-		u.uHalation.value = g.halation;
-		u.uGrain.value = g.grain;
-		u.uVignette.value = g.vignette;
-		u.uAberration.value = g.aberration;
+		u.uExposure.value = grade.exposure;
+		u.uLift.value.set(grade.lift.r, grade.lift.g, grade.lift.b);
+		u.uGamma.value.set(grade.gamma.r, grade.gamma.g, grade.gamma.b);
+		u.uGain.value.set(grade.gain.r, grade.gain.g, grade.gain.b);
+		u.uSaturation.value = grade.saturation;
+		u.uContrast.value = grade.contrast;
+		u.uBloom.value = grade.bloom;
+		u.uHalation.value = grade.halation;
+		u.uGrain.value = grade.grain;
+		u.uGrainSize.value = grade.grainSize ?? 1.35;
+		u.uVignette.value = grade.vignette;
+		u.uAberration.value = grade.aberration;
+		u.uFlare.value = grade.flare ?? 0.012;
+		u.uDirt.value = grade.dirt ?? 0.6;
+		u.uDistortion.value = grade.distortion ?? 0.035;
+		u.uSoftness.value = grade.softness ?? 0;
+		u.uWeave.value = grade.weave ?? 0.35;
+		this.volume.use(atmos, volume);
 	}
 
-	private pass(material: ShaderMaterial, target: WebGLRenderTarget | null): void {
+	private pass = (material: ShaderMaterial, target: WebGLRenderTarget | null): void => {
 		this.quad.material = material;
 		this.renderer.setRenderTarget(target);
 		this.renderer.render(this.quadScene, this.quadCam);
-	}
+	};
 
-	render(scene: Scene, camera: Camera, time: number, fade: number, canvasSize: Vector2): void {
+	render(scene: Scene, camera: PerspectiveCamera, time: number, fade: number, canvasSize: Vector2): void {
 		const r = this.renderer;
 		r.setRenderTarget(this.sceneRT);
 		r.setClearColor(0x000000, 1);
 		r.clear();
 		r.render(scene, camera);
 
-		let src = this.sceneRT.texture;
+		let hdr: Texture = this.sceneRT.texture;
+		if (this.volume.settings) {
+			this.combine.uniforms.tScene.value = this.sceneRT.texture;
+			this.combine.uniforms.tVolume.value = this.volume.render(this.pass, this.sceneRT.depthTexture!, camera);
+			this.pass(this.combine, this.combineRT);
+			hdr = this.combineRT.texture;
+		}
+
+		let src = hdr;
 		let sw = this.size.x;
 		let sh = this.size.y;
 		for (let i = 0; i < this.levels; i++) {
@@ -305,21 +454,22 @@ export class Pipeline {
 			sw = this.mips[i].width;
 			sh = this.mips[i].height;
 		}
+		this.flare.uniforms.tSrc.value = this.mips[2].texture;
+		this.pass(this.flare, this.flareRT);
 		r.autoClear = false;
 		for (let i = this.levels - 1; i > 0; i--) {
 			const lower = this.mips[i];
 			this.up.uniforms.tSrc.value = lower.texture;
 			this.up.uniforms.uTexel.value.set(1 / lower.width, 1 / lower.height);
-			this.up.uniforms.uRadius.value = 1;
-			this.up.uniforms.uWeight.value = 1;
 			this.pass(this.up, this.mips[i - 1]);
 		}
 		r.autoClear = true;
 
 		const u = this.composite.uniforms;
-		u.tScene.value = this.sceneRT.texture;
+		u.tScene.value = hdr;
 		u.tBloom.value = this.mips[0].texture;
 		u.uResolution.value.copy(canvasSize);
+		u.uTexel.value.set(1 / this.size.x, 1 / this.size.y);
 		u.uTime.value = time;
 		u.uFade.value = fade;
 		this.pass(this.composite, null);
@@ -327,10 +477,12 @@ export class Pipeline {
 
 	dispose(): void {
 		this.sceneRT.dispose();
+		this.combineRT.dispose();
+		this.flareRT.dispose();
 		this.mips.forEach((m) => m.dispose());
-		this.down.dispose();
-		this.up.dispose();
-		this.composite.dispose();
+		this.volume.dispose();
+		this.dirt.dispose();
+		for (const m of [this.down, this.up, this.combine, this.flare, this.composite]) m.dispose();
 		this.quad.geometry.dispose();
 	}
 }

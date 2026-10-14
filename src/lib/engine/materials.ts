@@ -142,7 +142,7 @@ export interface SurfaceSettings {
 	emissive?: Color;
 	snow?: { color: Color; slope: number; minHeight: number };
 	canopy?: { cell: number; color: Color; color2: Color; bump: number };
-	grid?: { size: Vector2; strength: number };
+	grid?: { size: Vector2; strength: number; window?: [number, number, number] };
 	sparkle?: number;
 	spec?: number;
 	bakedShadow?: boolean;
@@ -168,6 +168,7 @@ export function createSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSetti
 			uCanopyColor: { value: s.canopy?.color ?? new Color() },
 			uCanopyColor2: { value: s.canopy?.color2 ?? new Color() },
 			uGrid: { value: new Vector3(s.grid?.size.x ?? 1, s.grid?.size.y ?? 1, s.grid?.strength ?? 0) },
+			uWindow: { value: new Vector3(...(s.grid?.window ?? [0, 0, 0])) },
 			uSparkle: { value: s.sparkle ?? 0 },
 			uSpec: { value: s.spec ?? 0 }
 		}),
@@ -203,6 +204,7 @@ export function createSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSetti
 			uniform vec3 uCanopyColor;
 			uniform vec3 uCanopyColor2;
 			uniform vec3 uGrid;
+			uniform vec3 uWindow;
 			uniform float uSparkle;
 			uniform float uSpec;
 			varying vec3 vWorld;
@@ -278,10 +280,19 @@ export function createSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSetti
 				float line = max(smoothstep(1.0 - gw.x * 1.5, 1.0, gf.x), smoothstep(1.0 - gw.y * 1.5, 1.0, gf.y));
 				albedo *= 1.0 - line * uGrid.z;
 				albedo *= 0.94 + 0.12 * hash12(floor(gp / uGrid.xy));
+				float win = 0.0;
+				if (uWindow.z > 0.0 && an.y < 0.5) {
+					vec2 wq = smoothstep(uWindow.xy + gw, uWindow.xy - gw, gf);
+					win = wq.x * wq.y * step(0.25, hash12(floor(gp / uGrid.xy) + 3.7));
+					albedo *= 1.0 - win * uWindow.z;
+				}
 				#endif
 
 				vec3 light = ambientLight(n) * ao + directLight(p, n, uWrap) * vShade * mix(1.0, ao, 0.6);
 				vec3 col = albedo * light + uEmissive;
+				#ifdef GRID
+				col += win * uWindow.z * 0.12 * uAmbientSky * (0.4 + 0.6 * pow(1.0 - max(dot(n, V), 0.0), 3.0));
+				#endif
 
 				if (uSpec > 0.0) {
 					vec3 H = normalize(uSunDir + V);
@@ -403,12 +414,13 @@ export function createRibbonMaterial(atmos: AtmosphereUniforms, s: RibbonSetting
 	});
 }
 
-export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: boolean; halo?: number }): ShaderMaterial {
+export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: boolean; halo?: number; spikes?: number }): ShaderMaterial {
 	return new ShaderMaterial({
 		defines: opts.stars ? { STARS: '' } : {},
 		uniforms: shared(atmos, {
 			uPxScale: viewport.pxScale,
-			uHalo: { value: opts.halo ?? 0.4 }
+			uHalo: { value: opts.halo ?? 0.4 },
+			uSpikes: { value: opts.spikes ?? 0 }
 		}),
 		vertexShader: /* glsl */ `
 			${glslCommon}
@@ -418,6 +430,7 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 			attribute float aTwinkle;
 			varying vec3 vColor;
 			varying float vCore;
+			varying float vSizePx;
 			void main() {
 				vec4 w = modelMatrix * vec4(position, 1.0);
 				vec3 col = aColor;
@@ -438,12 +451,15 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 				gl_Position = projectionMatrix * mv;
 				gl_PointSize = aSize * uPxScale;
 				vCore = 1.4 / max(aSize * uPxScale, 1.0);
+				vSizePx = aSize * uPxScale;
 			}
 		`,
 		fragmentShader: /* glsl */ `
 			uniform float uHalo;
+			uniform float uSpikes;
 			varying vec3 vColor;
 			varying float vCore;
+			varying float vSizePx;
 			void main() {
 				vec2 q = gl_PointCoord * 2.0 - 1.0;
 				float r2 = dot(q, q);
@@ -451,7 +467,10 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 				float core = exp(-r2 / (vCore * vCore * 0.5));
 				float halo = exp(-r2 * 6.0) * uHalo;
 				float edge = 1.0 - r2;
-				gl_FragColor = vec4(vColor * (core + halo) * edge, 1.0);
+				vec2 a = abs(q) * vSizePx * 0.5;
+				vec2 fall = 1.0 - abs(q);
+				float spikes = (exp(-a.y * 1.6) * fall.x * fall.x + exp(-a.x * 1.6) * fall.y * fall.y) * uSpikes;
+				gl_FragColor = vec4(vColor * (core + halo + spikes) * edge, 1.0);
 			}
 		`,
 		transparent: true,

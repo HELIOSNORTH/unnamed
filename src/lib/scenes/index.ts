@@ -17,5 +17,5 @@ export const scenes: SceneInfo[] = [
 	{ id: 'hill-station', title: 'Hill Station', place: 'Tropical night, sea haze', build: buildHillStation },
 	{ id: 'summit', title: 'Summit', place: 'Alpine relay, full moon', build: buildSummit },
 	{ id: 'pylons', title: 'Pylons', place: 'Edge of town, clear sky', build: buildPylons },
-	{ id: 'launch', title: 'Launch Complex', place: 'Mountain valley, blue hour', build: buildLaunch }
+	{ id: 'launch', title: 'Launch Complex', place: 'Mountain valley, overcast', build: buildLaunch }
 ];

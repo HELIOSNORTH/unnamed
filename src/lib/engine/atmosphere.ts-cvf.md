@@ -10,6 +10,7 @@ Fog is applied per fragment in each material (`applyAtmosphere(col, worldPos)`),
 - Cloud slab: horizontal layer `uSlab = (bottom, top, density, noiseScale)`; path length through the slab is exact, density is modulated by 2D fbm sampled at two points on the in-slab segment. Cheap cloud sea / mist bands with no extra geometry. Camera inside the slab looks bad (long grazing paths stretch the noise) — keep it above or below the eye.
 - Point lights: in-scattering uses the closed-form ∫1/(h²+(t−b)²) = (atan((t−b)/h)+atan(b/h))/h, times local density at the closest approach, Henyey–Greenstein phase (`uPhase = (g, isotropic floor)`), times transmittance to that point. h is clamped (0.6 m) to avoid the singularity.
 - Spot lights: `uLightSpot[i] = (dir, cosOuter)`, w < −1.5 = omni. Applied to surface light and (approximately, at the closest-approach point) to scattering.
+- `uLightRange[i]`: windowed falloff `(1−(d/r)⁴)²` (UE4 form) on surface light and volume light; 0 = unlimited. Needed because pure inverse-square sodium floods lit a whole hillside 300 m away.
 - `uLightSurf[i]` scales a light's surface contribution only. Used where a light should glow in the air but not flood nearby geometry (beacons next to their mast, red panel lights on the launch tower).
 
 ## Units / calibration

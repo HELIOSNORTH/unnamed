@@ -10,7 +10,15 @@
 - Glass UI: intro, scene title cards, navigation pill, mute, full screen, debug HUD.
 - Single-file build published as a claude.ai artifact.
 
-## M2 — Next candidates
+## M2 — Photo-matched atmosphere and ultra rendering (2026-10-14) ✅
+
+- Raymarched volumetric mist (3D Perlin-Worley noise texture, quadratic jittered steps, temporal reprojection) on Hill Station, Summit, Launch Complex.
+- Lens model: ghosts + halo with dispersion, procedural lens dirt, barrel distortion, diffraction crosses on point lights.
+- Film stock controls: softness, grain size, gate weave; Launch Complex graded as a cyan 80s print.
+- Light range falloff; per-scene photo comparison harness (`scripts/compare.mjs`, `scripts/compare-montage.py`).
+- All five scenes re-composed and re-lit against their reference photos (band colours within ~10–15 RGB, object positions solved from photo pixel positions).
+
+## M3 — Next candidates
 
 - Measure frame times on Apple Silicon and a mid-range Windows laptop; tune adaptive scale thresholds from those numbers.
 - Listening pass on headphones and speakers; adjust per-voice levels.

@@ -18,35 +18,35 @@ function height(x: number, z: number): number {
 export function buildBeacon(): BuiltScene {
 	const scene = new Scene();
 	const atmos = createAtmosphereUniforms({
-		fogLow: rgb(0.02, 0.0135, 0.04),
-		fogHigh: rgb(0.003, 0.0055, 0.022),
-		glowColor: rgb(0.032, 0.01, 0.03),
-		glowDir: new Vector3(-0.3, 0.02, -1),
-		glowExp: 9,
-		fogDensity: 0.00026,
-		fogFalloff: 0.0035,
-		ambientSky: rgb(0.012, 0.013, 0.034),
-		ambientGround: rgb(0.004, 0.003, 0.006),
-		lightScatter: 1.0,
-		phaseG: 0.86,
-		isotropic: 0.004
+		fogLow: rgb(0.04, 0.023, 0.024),
+		fogHigh: rgb(0.008, 0.011, 0.027),
+		glowColor: rgb(0.018, 0.008, 0.006),
+		glowDir: new Vector3(0.35, 0.0, -1),
+		glowExp: 6,
+		fogDensity: 0.00014,
+		fogFalloff: 0.003,
+		ambientSky: rgb(0.02, 0.019, 0.026),
+		ambientGround: rgb(0.006, 0.004, 0.004),
+		lightScatter: 0.22,
+		phaseG: 0.92,
+		isotropic: 0.002
 	});
 
 	addSky(scene, atmos, {
-		zenith: rgb(0.0016, 0.003, 0.0135),
-		horizon: rgb(0.01, 0.008, 0.026),
-		curve: 0.45
+		zenith: rgb(0.004, 0.008, 0.024),
+		horizon: rgb(0.02, 0.018, 0.03),
+		curve: 0.42
 	});
-	addStars(scene, atmos, 15000, 2.2, 11);
+	addStars(scene, atmos, 7000, 1.3, 11);
 
 	const ground = new Mesh(
 		polarTerrain({ center: [0, 0], span: 1.6, rMin: 2, rMax: 14000, rings: 340, segments: 260, height }),
-		createSurfaceMaterial(atmos, { albedo: rgb(0.05, 0.04, 0.032), albedo2: rgb(0.03, 0.028, 0.025), variation: 0.3, variationScale: 0.02 })
+		createSurfaceMaterial(atmos, { albedo: rgb(0.3, 0.19, 0.14), albedo2: rgb(0.2, 0.14, 0.11), variation: 0.3, variationScale: 0.02 })
 	);
 	scene.add(ground);
 
 	const towerBase = new Vector3(4, height(4, -312) - 0.5, -312);
-	const tower = latticeTower({ base: towerBase, height: 46, baseWidth: 7, topWidth: 1.6, sections: 14, legRadius: 0.14, braceRadius: 0.06, rotation: 0.3 });
+	const tower = latticeTower({ base: towerBase, height: 46, baseWidth: 8.5, topWidth: 1.9, sections: 14, legRadius: 0.22, braceRadius: 0.09, rotation: 0.3 });
 	const mastBase = new Vector3(66, height(66, -430) - 0.5, -430);
 	const mast = latticeTower({ base: mastBase, height: 330, baseWidth: 1.1, topWidth: 1.1, sections: 160, legs: 3, legRadius: 0.07, braceRadius: 0.03, rotation: 0.4, taperPower: 1 });
 
@@ -61,8 +61,8 @@ export function buildBeacon(): BuiltScene {
 		}
 	}
 
-	const poleX = -74;
-	const poleZ = -300;
+	const poleX = -12;
+	const poleZ = -296;
 	const py = height(poleX, poleZ);
 	const pole: Segment[] = [
 		{ a: new Vector3(poleX - 1.4, py - 1, poleZ), b: new Vector3(poleX - 1.4, py + 9.5, poleZ), r: 0.16 },
@@ -96,6 +96,13 @@ export function buildBeacon(): BuiltScene {
 			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.2, z), height: hgt, spread: 1.7, depth: 6, seed: i * 13 + 1, radius: 0.11, children: 3, upBias: 0.4 })
 		);
 	}
+	for (let i = 0; i < 9; i++) {
+		const x = -38 + rand() * 20;
+		const z = -284 - rand() * 12;
+		plants.push(
+			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.3, z), height: 4 + rand() * 3, spread: 1.9, depth: 6, seed: 500 + i, radius: 0.12, children: 3, upBias: 0.35 })
+		);
+	}
 	for (let i = 0; i < 26; i++) {
 		const x = -60 + rand() * 120;
 		const z = -18 - rand() * 120;
@@ -105,7 +112,8 @@ export function buildBeacon(): BuiltScene {
 		);
 	}
 
-	addRibbons(scene, atmos, [...tower.segments, ...mast.segments, ...pole], { color: rgb(0.09, 0.09, 0.1), minWidthPx: 0.55, lightResponse: 0.06 });
+	addRibbons(scene, atmos, tower.segments, { color: rgb(0.24, 0.23, 0.24), minWidthPx: 0.55, lightResponse: 0.06 });
+	addRibbons(scene, atmos, [...mast.segments, ...pole], { color: rgb(0.09, 0.09, 0.1), minWidthPx: 0.55, lightResponse: 0.06 });
 	addRibbons(scene, atmos, guys, { color: rgb(0.2, 0.2, 0.2), minWidthPx: 0.45, lightResponse: 0.3 });
 	addRibbons(scene, atmos, plants, { color: rgb(0.012, 0.011, 0.01), minWidthPx: 0.7, lightResponse: 0.05 });
 
@@ -132,22 +140,22 @@ export function buildBeacon(): BuiltScene {
 	const red = rgb(1, 0.035, 0.012);
 	const lights: SceneLight[] = [];
 	const beat = flash(2.05, 1.0, 0, 0.2, 0.42);
-	for (const h of [64, 96, 128, 160, 194]) {
-		lights.push({ position: new Vector3(mastBase.x, mastBase.y + h, mastBase.z + 0.8), color: red, intensity: 250, pattern: beat, sprite: { size: 7, brightness: 900 }, surface: 0.5 });
+	for (const h of [34, 64, 94, 124, 154]) {
+		lights.push({ position: new Vector3(mastBase.x, mastBase.y + h, mastBase.z + 0.8), color: red, intensity: 140, pattern: beat, sprite: { size: 22, brightness: 300 }, surface: 0.5 });
 	}
 	lights.push({
 		position: new Vector3(towerBase.x, towerBase.y + 47.2, towerBase.z),
 		color: kelvin(5200),
-		intensity: 90,
+		intensity: 12,
 		pattern: steady,
-		sprite: { size: 4, brightness: 260 }
+		sprite: { size: 10, brightness: 120 }
 	});
 	lights.push({
-		position: new Vector3(mastBase.x - 3, mastBase.y + 2.5, mastBase.z + 6),
-		color: kelvin(2000),
-		intensity: 260,
+		position: new Vector3(mastBase.x - 3, mastBase.y + 7, mastBase.z + 6),
+		color: kelvin(1900),
+		intensity: 220,
 		pattern: steady,
-		sprite: { size: 5, brightness: 500 }
+		sprite: { size: 12, brightness: 600 }
 	});
 
 	const distant: Parameters<typeof addPoints>[2] = [];
@@ -178,7 +186,7 @@ export function buildBeacon(): BuiltScene {
 	}
 	addPoints(scene, atmos, distant, 0.5);
 
-	const updateSprites = addLightSprites(scene, atmos, lights, 0.45);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.02, 0.035);
 
 	const camPos = new Vector3(0, height(0, 0) + 1.6, 0);
 	const target = camPos.clone().add(new Vector3(Math.sin(0.018), Math.tan((10.4 * Math.PI) / 180), -1).multiplyScalar(300));
@@ -190,17 +198,19 @@ export function buildBeacon(): BuiltScene {
 		windiness: 0.55,
 		shot: { position: camPos, target, fov: 14, refAspect: 1.55 },
 		grade: {
-			exposure: 1.0,
-			lift: rgb(0.004, 0.003, 0.012),
-			gamma: rgb(1.0, 0.98, 1.04),
-			gain: rgb(1.0, 0.97, 1.02),
-			saturation: 1.12,
-			contrast: 1.06,
+			exposure: 1.15,
+			lift: rgb(0.002, 0.002, 0.004),
+			gamma: rgb(1.0, 1.0, 1.0),
+			gain: rgb(1.0, 1.0, 1.0),
+			saturation: 1.05,
+			contrast: 1.04,
 			bloom: 0.05,
-			halation: 0.6,
-			grain: 0.035,
-			vignette: 0.55,
-			aberration: 0.006
+			halation: 0.5,
+			grain: 0.03,
+			vignette: 0.45,
+			aberration: 0.006,
+			flare: 0.02,
+			dirt: 0.8
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

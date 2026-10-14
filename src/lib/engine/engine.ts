@@ -111,7 +111,7 @@ export class Engine {
 		this.current = i;
 		this.pending = -1;
 		const b = this.ensure(i);
-		this.pipeline.setGrade(b.grade);
+		this.pipeline.setScene(b.grade, b.atmos, b.volume);
 		this.rig.fit(this.camera, b.shot, this.canvasSize.x / this.canvasSize.y);
 		this.onSwap?.(i);
 	}

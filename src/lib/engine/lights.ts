@@ -33,6 +33,7 @@ export interface SceneLight {
 	sprite?: { size: number; brightness: number };
 	scatter?: boolean;
 	surface?: number;
+	range?: number;
 	spot?: { target: Vector3; angle: number };
 }
 
@@ -47,6 +48,7 @@ export function applyLights(lights: SceneLight[], atmos: AtmosphereUniforms, t: 
 		atmos.uLightPos.value[n].copy(l.position);
 		atmos.uLightCol.value[n].set(l.color.r * k, l.color.g * k, l.color.b * k);
 		atmos.uLightSurf.value[n] = l.surface ?? 1;
+		atmos.uLightRange.value[n] = l.range ?? 0;
 		const spot = atmos.uLightSpot.value[n];
 		if (l.spot) {
 			aim.copy(l.spot.target).sub(l.position).normalize();

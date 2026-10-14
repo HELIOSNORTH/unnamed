@@ -14,6 +14,7 @@ pnpm check             # svelte-check + TypeScript
 pnpm build             # static single-file site in build/index.html
 pnpm artifact          # build + dist/quiet-signals.html (body-only page for claude.ai artifacts)
 pnpm shots 0,1,2,3,4 960 540 21   # headless screenshots of scenes at t=21 s → shots/
+node scripts/compare.mjs <photos> 0,1,2,3,4 21 shots 560 && python3 scripts/compare-montage.py <photos> shots 0,1,2,3,4   # photo vs render
 ```
 
 `pnpm shots` needs a Playwright Chromium (`pnpm exec playwright install chromium` on a new machine). It renders with SwiftShader, so expect 5–25 s per frame.
@@ -28,7 +29,8 @@ pnpm shots 0,1,2,3,4 960 540 21   # headless screenshots of scenes at t=21 s →
 | --- | --- |
 | Three.js, but only `ShaderMaterial`s | Every surface runs the same analytic atmosphere code, so fog, aerial perspective and light glow match across sky, terrain and towers. Built-in materials would need patching to do that. |
 | Forward (per-fragment) fog instead of a depth-based post pass | Lattice towers are sub-pixel lines. A post pass would fog their MSAA-resolved edge pixels with the wrong depth and draw halos. See `src/lib/engine/atmosphere.ts-cvf.md`. |
-| Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR target → 7-level bloom → one composite pass (AgX, grade, grain, vignette, aberration, fade). |
+| Raymarched volumetric fog | Browsers have no hardware ray tracing; per-pixel raymarching through 3D noise with temporal accumulation gives drifting mist that lights catch. See `src/lib/engine/volumetrics.ts-cvf.md`. |
+| Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR + depth → volume → 7-level bloom → lens ghosts → one composite pass (lens dirt, distortion, aberration, AgX, grade, film grain/softness/weave, fade). |
 | Procedural Web Audio, no audio files | Ships as one file, no licensing, and wind gusts drive camera sway and wind sound from one shared signal. |
 | SvelteKit 3, hash router, `bundleStrategy: 'inline'` | CSR-only single HTML file that works from `file://`, any static host and a claude.ai artifact. |
 | Tailwind 4 + normalize.css + sanitize.css | House style; UI is a thin glass layer over the canvas. |
@@ -48,10 +50,12 @@ Context that the code cannot carry lives in CVF files next to the code (`<file>-
 
 - `src/lib/engine/atmosphere.ts-cvf.md` – fog, cloud slab and light-scattering model, units and calibration
 - `src/lib/engine/materials.ts-cvf.md` – sky, surface (canopy, snow, facade), ribbon lines, points
-- `src/lib/engine/post.ts-cvf.md` – HDR pipeline, AgX caveats, grain
+- `src/lib/engine/post.ts-cvf.md` – HDR pipeline, lens model, film stock, AgX caveats
+- `src/lib/engine/volumetrics.ts-cvf.md` – raymarched mist, temporal resolve
+- `src/lib/engine/noise3d.ts-cvf.md` – 3D cloud noise texture
 - `src/lib/engine/geometry.ts-cvf.md` – terrain meshes, shadow bake, ribbon layout
 - `src/lib/engine/engine.ts-cvf.md` – loop, transitions, adaptive resolution, health hooks
-- `src/lib/scenes/index.ts-cvf.md` – how scenes are tuned, per-scene notes
+- `src/lib/scenes/index.ts-cvf.md` – photo-matching workflow, per-scene notes
 - `src/lib/audio/engine.ts-cvf.md` – audio graph, scheduling, loudness targets
 - `vite.config.ts-cvf.md` – SvelteKit 3 specifics
 
@@ -63,4 +67,5 @@ Measured in headless Chromium (2026-10-14): scene builds 0.2–2.3 s (done while
 
 - Real GPU frame times are unmeasured here (only SwiftShader is available in the build container). Check the D HUD on target hardware.
 - Lights do not cast shadows through fog (no occlusion of in-scattering).
+- The reference photos are not in the repo (source: user, rights unclear); `compare.mjs` takes their directory as an argument.
 - Mixing of the soundscapes was balanced by measured RMS, not by ear.

@@ -12,14 +12,14 @@ function height(x: number, z: number): number {
 }
 
 function pylon(base: Vector3, h: number, rot: number): { segs: Segment[]; arms: Vector3[] } {
-	const t = latticeTower({ base, height: h, baseWidth: 7, topWidth: 1.4, sections: 12, legRadius: 0.13, braceRadius: 0.05, rotation: rot, taperPower: 1.4 });
+	const t = latticeTower({ base, height: h, baseWidth: 5, topWidth: 1.2, sections: 12, legRadius: 0.13, braceRadius: 0.05, rotation: rot, taperPower: 1.4 });
 	const segs = [...t.segments];
 	const arms: Vector3[] = [];
 	const ax = new Vector3(Math.cos(rot), 0, Math.sin(rot));
 	for (const [hh, span] of [
-		[h * 0.62, 9],
-		[h * 0.78, 7],
-		[h * 0.92, 5.5]
+		[h * 0.6, 5],
+		[h * 0.75, 4.4],
+		[h * 0.9, 3.6]
 	] as const) {
 		const c = base.clone().add(new Vector3(0, hh, 0));
 		const w = t.widthAt(hh) * 0.5;
@@ -41,9 +41,9 @@ function pylon(base: Vector3, h: number, rot: number): { segs: Segment[]; arms: 
 export function buildPylons(): BuiltScene {
 	const scene = new Scene();
 	const atmos = createAtmosphereUniforms({
-		fogLow: rgb(0.022, 0.026, 0.04),
-		fogHigh: rgb(0.002, 0.003, 0.01),
-		glowColor: rgb(0.024, 0.02, 0.02),
+		fogLow: rgb(0.04, 0.046, 0.054),
+		fogHigh: rgb(0.001, 0.0026, 0.0042),
+		glowColor: rgb(0.012, 0.012, 0.014),
 		glowDir: new Vector3(-0.3, 0.0, -1),
 		glowExp: 3,
 		fogDensity: 0.00022,
@@ -56,12 +56,11 @@ export function buildPylons(): BuiltScene {
 	});
 
 	addSky(scene, atmos, {
-		zenith: rgb(0.0012, 0.0022, 0.009),
-		horizon: rgb(0.008, 0.011, 0.024),
-		curve: 0.4,
-		milkyWay: { normal: new Vector3(0.62, 0.35, 0.7), intensity: 0.02 }
+		zenith: rgb(0.0009, 0.0025, 0.0042),
+		horizon: rgb(0.014, 0.019, 0.03),
+		curve: 0.55
 	});
-	addStars(scene, atmos, 16000, 1.45, 41);
+	addStars(scene, atmos, 9000, 0.9, 41);
 
 	scene.add(
 		new Mesh(
@@ -81,9 +80,9 @@ export function buildPylons(): BuiltScene {
 		pole.add(m);
 		return m;
 	};
-	add(new Mesh(new CylinderGeometry(0.36, 0.52, 27, 24, 1), paint), 0, 13.5, 0);
-	add(new Mesh(new CylinderGeometry(0.55, 0.55, 0.5, 24, 1), paint), 0, 12, 0);
-	add(new Mesh(new CylinderGeometry(0.42, 0.42, 0.4, 24, 1), paint), 0, 20, 0);
+	add(new Mesh(new CylinderGeometry(0.2, 0.3, 27, 20, 1), paint), 0, 13.5, 0);
+	add(new Mesh(new CylinderGeometry(0.34, 0.34, 0.5, 20, 1), paint), 0, 12, 0);
+	add(new Mesh(new CylinderGeometry(0.27, 0.27, 0.4, 20, 1), paint), 0, 20, 0);
 	add(new Mesh(new CylinderGeometry(1.7, 1.7, 0.18, 3, 1), darkMat), 0, 26.4, 0);
 	add(new Mesh(new CylinderGeometry(1.5, 1.5, 0.12, 3, 1), darkMat), 0, 28.8, 0);
 	const panel = new BoxGeometry(0.34, 1.9, 0.14);
@@ -100,25 +99,24 @@ export function buildPylons(): BuiltScene {
 	add(new Mesh(new CylinderGeometry(0.06, 0.08, 4, 8, 1), darkMat), 0, 30.3, 0);
 	scene.add(pole);
 
-	const a = pylon(new Vector3(-13, height(-13, -48), -48), 31, 0.35);
-	const b = pylon(new Vector3(-58, height(-58, -128), -128), 31, 0.4);
-	const c = pylon(new Vector3(36, height(36, -150), -150), 34, -0.15);
-	const d = pylon(new Vector3(70, height(70, -90), -90), 34, -0.2);
+	const a = pylon(new Vector3(13, height(13, -60), -60), 37, 0.15);
+	const b = pylon(new Vector3(-170, height(-170, -110), -110), 31, 0.2);
+	const c = pylon(new Vector3(49, height(49, -84), -84), 34, 0.1);
+	const d = pylon(new Vector3(200, height(200, -120), -120), 34, 0.1);
 	const wires: Segment[] = [];
 	for (let i = 0; i < a.arms.length; i++) {
-		wires.push(...catenary(a.arms[i], b.arms[i], 4, 0.016, 30));
-		wires.push(...catenary(a.arms[i], a.arms[i].clone().add(new Vector3(52, 6, 115)), 4.5, 0.016, 30));
-		wires.push(...catenary(c.arms[i], d.arms[i], 3.2, 0.016, 30));
-		wires.push(...catenary(c.arms[i], c.arms[i].clone().add(new Vector3(-92, 0, -95)), 4, 0.016, 30));
+		wires.push(...catenary(a.arms[i], b.arms[i], 6, 0.018, 40));
+		wires.push(...catenary(c.arms[i], d.arms[i], 5, 0.018, 40));
+		wires.push(...catenary(a.arms[i], c.arms[i], 2.5, 0.018, 30));
 	}
-	const pylonColor = { color: rgb(0.2, 0.2, 0.21), minWidthPx: 0.6, lightResponse: 0.55 };
+	const pylonColor = { color: rgb(0.5, 0.5, 0.5), minWidthPx: 0.6, lightResponse: 0.6 };
 	addRibbons(scene, atmos, [...a.segs, ...b.segs, ...c.segs, ...d.segs], pylonColor);
 	addRibbons(scene, atmos, wires, { color: rgb(0.1, 0.1, 0.11), minWidthPx: 0.45, lightResponse: 0.12 });
 
 	const lamp = kelvin(4300);
 	const lights: SceneLight[] = [
 		{ position: new Vector3(-10, 9, 10), color: lamp, intensity: 1700, pattern: steady, spot: { target: new Vector3(7.5, 14, -15), angle: 0.5 } },
-		{ position: new Vector3(-30, 7, -62), color: kelvin(4000), intensity: 420, pattern: steady }
+		{ position: new Vector3(20, 5, -40), color: kelvin(3600), intensity: 900, pattern: steady, range: 80 }
 	];
 
 	const rand = mulberry32(4);
