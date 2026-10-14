@@ -42,6 +42,7 @@ export class Engine {
 	private scale = 1;
 	private maxScale = 1;
 	private frameTimes: number[] = [];
+	private readonly minScale = 0.5;
 	private lastStats: EngineStats | null = null;
 	private adaptive = true;
 	private lastBuildMs = 0;
@@ -156,12 +157,13 @@ export class Engine {
 	private adapt(dtMs: number): void {
 		if (!this.adaptive) return;
 		this.frameTimes.push(dtMs);
-		if (this.frameTimes.length < 90) return;
+		const total = this.frameTimes.reduce((a, b) => a + b, 0);
+		if (total < 800 || this.frameTimes.length < 8) return;
 		const sorted = [...this.frameTimes].sort((a, b) => a - b);
 		const median = sorted[sorted.length >> 1];
 		this.frameTimes.length = 0;
-		if (median > 24 && this.scale > 0.5) {
-			this.scale = Math.max(0.5, this.scale * 0.85);
+		if (median > 24 && this.scale > this.minScale) {
+			this.scale = Math.max(this.minScale, this.scale * Math.max(0.6, Math.sqrt(16.7 / median)));
 			this.applyScale();
 		} else if (median < 17.5 && this.scale < this.maxScale) {
 			this.scale = Math.min(this.maxScale, this.scale * 1.05);

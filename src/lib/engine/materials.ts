@@ -459,3 +459,54 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 		blending: AdditiveBlending
 	});
 }
+
+export function createDriftMaterial(atmos: AtmosphereUniforms, opts: { box: Vector3; windDir: Vector2; speed: number; brightness: number }): ShaderMaterial {
+	return new ShaderMaterial({
+		uniforms: shared(atmos, {
+			uPxScale: viewport.pxScale,
+			uBox: { value: opts.box },
+			uWindDir: { value: opts.windDir.clone().normalize() },
+			uSpeed: { value: opts.speed },
+			uBrightness: { value: opts.brightness }
+		}),
+		vertexShader: /* glsl */ `
+			${glslCommon}
+			uniform float uPxScale;
+			uniform vec3 uBox;
+			uniform vec2 uWindDir;
+			uniform float uSpeed;
+			uniform float uBrightness;
+			attribute vec4 aSeed;
+			varying float vAlpha;
+			void main() {
+				float gust = 0.35 + uWind;
+				vec3 drift = vec3(uWindDir.x, 0.0, uWindDir.y) * uSpeed * uTime * (0.7 + 0.6 * aSeed.w);
+				drift.y = -0.4 * uTime * (0.5 + aSeed.w);
+				vec3 swirl = vec3(sin(uTime * 1.7 + aSeed.x * 40.0), sin(uTime * 2.3 + aSeed.y * 30.0) * 0.6, cos(uTime * 1.3 + aSeed.z * 50.0)) * 0.6;
+				vec3 local = mod(aSeed.xyz * uBox + drift + swirl - cameraPosition, uBox) - uBox * 0.5;
+				vec3 world = cameraPosition + local;
+				world.y = cameraPosition.y - 1.6 + mod(aSeed.y * uBox.y + drift.y, uBox.y) * aSeed.y;
+				vec3 rd = normalize(world - cameraPosition);
+				float forward = pow(max(dot(rd, uSunDir), 0.0), 6.0);
+				float dist = length(world - cameraPosition);
+				vAlpha = uBrightness * gust * (0.35 + 2.5 * forward) * smoothstep(0.5, 2.5, dist) * smoothstep(uBox.x * 0.5, uBox.x * 0.3, dist);
+				vec4 mv = viewMatrix * vec4(world, 1.0);
+				gl_Position = projectionMatrix * mv;
+				gl_PointSize = clamp(18.0 / -mv.z, 1.2, 4.0) * uPxScale;
+			}
+		`,
+		fragmentShader: /* glsl */ `
+			uniform vec3 uSunColor;
+			varying float vAlpha;
+			void main() {
+				vec2 q = gl_PointCoord * 2.0 - 1.0;
+				float r2 = dot(q, q);
+				if (r2 > 1.0) discard;
+				gl_FragColor = vec4(uSunColor * vAlpha * (1.0 - r2), 1.0);
+			}
+		`,
+		transparent: true,
+		depthWrite: false,
+		blending: AdditiveBlending
+	});
+}
