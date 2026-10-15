@@ -13,6 +13,8 @@ await page.waitForFunction(() => window.__quietSignals, null, { timeout: 30000 }
 for (const s of scenesArg.split(',')) {
   const t0 = Date.now();
   await page.evaluate(([i, tt]) => window.__quietSignals.jump(i, tt), [+s, +t]);
+  if (process.env.TOGGLE) await page.evaluate((f) => window.__quietSignals.toggle(f), JSON.parse(process.env.TOGGLE));
+  if (process.env.RES) await page.evaluate((h) => window.__quietSignals.resolution(h), +process.env.RES);
   await page.waitForTimeout(+(process.env.WAIT || 2500));
   await page.screenshot({ path: `${out}/scene${s}.png`, timeout: 180000 });
   const st = await page.evaluate(() => window.__quietSignals.stats());

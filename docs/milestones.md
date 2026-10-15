@@ -55,9 +55,16 @@ Owner report (M1 Air): Beacon 20, Hill Station 12, Summit 15, Pylons 17, Launch 
 - Stars scintillate slightly. Summit glints are round in screen space (no more horizontal ovals).
 - Pylons lens flare reduced. Launch darker again (exposure 0.34). Summit fog volume back to ½ res.
 
-## M7 — Next candidates
+## M7 — Smarter resolution ladder (2026-10-15) ✅
 
-- Owner re-measure: which tier each scene settles at on the M1 Air.
+Owner report (M1 Air): Beacon 22 FPS at 1080p, Hill Station 22 at 720p, Summit 25 at 720p and later 540p, Pylons 22 at 1080p, Launch 25 at 540p. Dark horizontal lines in the distance at 1080p and below.
+- Ladder steps up above 45 FPS, starts over at native on every visit, median-based measurement.
+- Dark distant lines were SSAO depth-precision self-occlusion → AO fades out by 2 km.
+- No memory or GPU-object growth over time (3-minute run); drops over time are likely thermal.
+
+## M8 — Next candidates
+
+- Owner re-measure after the AO fix (AO no longer runs on the distant half of Hill Station and Launch, which should also help FPS).
 - If Hill Station settles low: lighter canopy grid (it is the densest mesh, 630k triangles).
 - Browser game: the scenes become levels (owner will specify). Runtime LOD for trees and terrain once the camera moves freely.
 - Listening pass on headphones and speakers; adjust per-voice levels.

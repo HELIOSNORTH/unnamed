@@ -28,6 +28,7 @@ const FADE_OUT_S = 1.1;
 const FADE_IN_S = 2.6;
 const TIER_HEIGHTS = [Infinity, 1080, 720, 540, 360];
 const MIN_FPS = 20;
+const MAX_FPS = 45;
 const SETTLE_MS = 1000;
 const WINDOW_MS = 2000;
 
@@ -47,10 +48,10 @@ export class Engine {
 	private time = 0;
 	private canvasSize = new Vector2();
 	private tier = 0;
-	private tierByScene = new Map<number, number>();
 	private fixedResolution = false;
+	private forcedHeight: number | null = null;
 	private windowMs = -SETTLE_MS;
-	private windowFrames = 0;
+	private windowFrames: number[] = [];
 	private renderSize = new Vector2(1, 1);
 	private lastStats: EngineStats | null = null;
 	private lastBuildMs = 0;
@@ -119,7 +120,7 @@ export class Engine {
 		this.current = i;
 		this.pending = -1;
 		const b = this.ensure(i);
-		this.tier = this.fixedResolution ? 0 : (this.tierByScene.get(i) ?? 0);
+		this.tier = 0;
 		this.resetWindow();
 		this.applyScale();
 		this.pipeline.setScene(b.grade, b.atmos, b.volume, b.ao);
@@ -141,7 +142,7 @@ export class Engine {
 	}
 
 	private applyScale(): void {
-		const k = Math.min(TIER_HEIGHTS[this.tier] / this.canvasSize.y, 1);
+		const k = Math.min((this.forcedHeight ?? TIER_HEIGHTS[this.tier]) / this.canvasSize.y, 1);
 		const rw = Math.max(1, Math.round(this.canvasSize.x * k));
 		const rh = Math.max(1, Math.round(this.canvasSize.y * k));
 		if (rw === this.renderSize.x && rh === this.renderSize.y) return;
@@ -186,7 +187,7 @@ export class Engine {
 			if (this.fade >= 1) this.phase = 'idle';
 		}
 		if (this.current < 0) return;
-		if (this.phase === 'idle') this.adaptResolution(dtMs);
+		if (this.phase !== 'out') this.adaptResolution(dtMs);
 		const b = this.built.get(this.current)!;
 		const t = this.time;
 		const w = b.windiness * (0.5 + 0.38 * noise1(t * 0.055, 1) + 0.22 * noise1(t * 0.16, 2) + 0.12 * noise1(t * 0.47, 3));
@@ -202,21 +203,39 @@ export class Engine {
 
 	private resetWindow(): void {
 		this.windowMs = -SETTLE_MS;
-		this.windowFrames = 0;
+		this.windowFrames.length = 0;
 	}
 
 	private adaptResolution(dtMs: number): void {
-		if (this.fixedResolution) return;
+		if (this.fixedResolution || this.forcedHeight !== null) return;
 		this.windowMs += dtMs;
 		if (this.windowMs <= 0) return;
-		this.windowFrames++;
+		this.windowFrames.push(dtMs);
 		if (this.windowMs < WINDOW_MS) return;
-		const fps = (this.windowFrames * 1000) / this.windowMs;
+		const frames = this.windowFrames.sort((a, b) => a - b);
+		const fps = 1000 / frames[frames.length >> 1];
 		this.resetWindow();
-		if (fps >= MIN_FPS) return;
-		while (this.tier < TIER_HEIGHTS.length - 1 && TIER_HEIGHTS[this.tier] >= this.renderSize.y) this.tier++;
-		if (TIER_HEIGHTS[this.tier] >= this.renderSize.y) return;
-		this.tierByScene.set(this.current, this.tier);
+		if (fps < MIN_FPS) this.stepDown();
+		else if (fps > MAX_FPS) this.stepUp();
+	}
+
+	private stepDown(): void {
+		let tier = this.tier;
+		while (tier < TIER_HEIGHTS.length - 1 && TIER_HEIGHTS[tier] >= this.renderSize.y) tier++;
+		if (TIER_HEIGHTS[tier] >= this.renderSize.y) return;
+		this.tier = tier;
+		this.applyScale();
+	}
+
+	private stepUp(): void {
+		if (this.tier === 0) return;
+		this.tier--;
+		if (TIER_HEIGHTS[this.tier] >= this.canvasSize.y) this.tier = 0;
+		this.applyScale();
+	}
+
+	debugResolution(height: number | null): void {
+		this.forcedHeight = height;
 		this.applyScale();
 	}
 
@@ -228,7 +247,7 @@ export class Engine {
 			fps: this.fpsAvg,
 			frameMs: dtMs,
 			renderScale: this.renderSize.y / this.canvasSize.y,
-			renderHeight: this.tier > 0 ? this.renderSize.y : null,
+			renderHeight: this.renderSize.y < this.canvasSize.y ? this.renderSize.y : null,
 			drawCalls: info.render.calls,
 			triangles: info.render.triangles,
 			geometries: info.memory.geometries,
@@ -242,9 +261,10 @@ export class Engine {
 		this.pipeline.profiling = on;
 	}
 
-	debugToggle(flags: { volume?: boolean; ao?: boolean; shadows?: boolean }): void {
+	debugToggle(flags: { volume?: boolean; ao?: boolean; shadows?: boolean; dof?: boolean }): void {
 		this.pipeline.disabled.volume = flags.volume === false;
 		this.pipeline.disabled.ao = flags.ao === false;
+		this.pipeline.disabled.dof = flags.dof === false;
 		const b = this.built.get(this.current);
 		if (b?.shadow) b.atmos.uShadowParams.value.x = flags.shadows === false ? 0 : 1;
 	}

@@ -157,6 +157,8 @@ const aoFrag = /* glsl */ `
 		float d = texture2D(tDepth, vUv).r;
 		if (d >= 0.9999999) { gl_FragColor = vec4(1.0); return; }
 		vec3 P = viewPos(vUv);
+		float far = smoothstep(1000.0, 2000.0, -P.z);
+		if (far >= 1.0) { gl_FragColor = vec4(1.0); return; }
 		vec3 r = viewPos(vUv + vec2(uTexel.x, 0.0)) - P;
 		vec3 l = P - viewPos(vUv - vec2(uTexel.x, 0.0));
 		vec3 u = viewPos(vUv + vec2(0.0, uTexel.y)) - P;
@@ -181,7 +183,7 @@ const aoFrag = /* glsl */ `
 			float range = smoothstep(0.0, 1.0, R / max(abs(P.z - sz), 1e-3));
 			occ += step(S.z + 0.02 * R, sz) * range;
 		}
-		float ao = 1.0 - occ / 16.0;
+		float ao = mix(1.0 - occ / 16.0, 1.0, far);
 		gl_FragColor = vec4(vec3(pow(max(ao, 0.0), uIntensity)), 1.0);
 	}
 `;
@@ -510,12 +512,13 @@ export class Pipeline {
 	private dofRT: WebGLRenderTarget;
 	private dofMat: ShaderMaterial;
 	private dof: { focus: number; strength: number } | null = null;
+	private dofStrengthPx = 0;
 	private aoMat: ShaderMaterial;
 	private aoBlur: ShaderMaterial;
 	private streak: ShaderMaterial;
 	private aoSettings: { radius: number; intensity: number } | null = null;
 	profiling = false;
-	readonly disabled = { volume: false, ao: false };
+	readonly disabled = { volume: false, ao: false, dof: false };
 	readonly timings: Record<string, number> = {};
 	private markTime = 0;
 
@@ -695,6 +698,7 @@ export class Pipeline {
 		const strengthPx = this.dof ? (this.dof.strength * this.size.y) / 1080 : 0;
 		this.dofMat.uniforms.uDof.value.set(this.dof?.focus ?? 1, strengthPx);
 		this.composite.uniforms.uDof.value.set(this.dof?.focus ?? 1, strengthPx);
+		this.dofStrengthPx = strengthPx;
 	}
 
 	private pass = (material: ShaderMaterial, target: WebGLRenderTarget | null): void => {
@@ -746,7 +750,8 @@ export class Pipeline {
 			this.mark('combine');
 		}
 
-		if (this.dof) {
+		this.composite.uniforms.uDof.value.y = this.disabled.dof ? 0 : this.dofStrengthPx;
+		if (this.dof && !this.disabled.dof) {
 			const dm = this.dofMat.uniforms;
 			dm.tSrc.value = hdr;
 			dm.tDepth.value = depth;

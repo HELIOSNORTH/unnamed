@@ -160,9 +160,10 @@
 			select: (i: number) => select(i),
 			audio: () => sound?.levelDb() ?? null,
 			profile: (on: boolean) => e.setProfiling(on),
-			toggle: (f: { volume?: boolean; ao?: boolean; shadows?: boolean }) => e.debugToggle(f),
+			toggle: (f: { volume?: boolean; ao?: boolean; shadows?: boolean; dof?: boolean }) => e.debugToggle(f),
 			hide: (kinds: string[]) => e.debugHide(kinds),
-			passes: () => e.passTimings()
+			passes: () => e.passTimings(),
+			resolution: (h: number | null) => e.debugResolution(h)
 		};
 
 		return () => {
