@@ -1,6 +1,6 @@
 import { BoxGeometry, CylinderGeometry, Group, Mesh, Scene, Vector3 } from 'three';
 import { createAtmosphereUniforms } from '../engine/atmosphere.ts';
-import { catenary, latticeTower, polarTerrain, type Segment } from '../engine/geometry.ts';
+import { branchingPlant, catenary, latticeTower, polarTerrain, type Segment } from '../engine/geometry.ts';
 import { addLightSprites, addRibbons, addSky, addStars, addPoints, kelvin, rgb, type BuiltScene } from '../engine/kit.ts';
 import { steady, type SceneLight } from '../engine/lights.ts';
 import { createSurfaceMaterial } from '../engine/materials.ts';
@@ -65,7 +65,7 @@ export function buildPylons(): BuiltScene {
 	scene.add(
 		new Mesh(
 			polarTerrain({ center: [0, 0], span: 2.6, rMin: 0.5, rMax: 12000, rings: 260, segments: 240, height }),
-			createSurfaceMaterial(atmos, { albedo: rgb(0.007, 0.0065, 0.006), albedo2: rgb(0.005, 0.005, 0.005) })
+			createSurfaceMaterial(atmos, { albedo: rgb(0.05, 0.055, 0.04), albedo2: rgb(0.035, 0.04, 0.03), variation: 0.5, variationScale: 0.6, wrap: 0.3 })
 		)
 	);
 
@@ -113,8 +113,32 @@ export function buildPylons(): BuiltScene {
 	addRibbons(scene, atmos, [...a.segs, ...b.segs, ...c.segs, ...d.segs], pylonColor);
 	addRibbons(scene, atmos, wires, { color: rgb(0.1, 0.1, 0.11), minWidthPx: 0.45, lightResponse: 0.12 });
 
+	const blades: Segment[] = [];
+	const grassRand = mulberry32(99);
+	for (let i = 0; i < 3400; i++) {
+		const x = -22 + grassRand() * 48;
+		const z = -1.6 - grassRand() * 7.5;
+		const y = height(x, z);
+		const h = 0.18 + Math.pow(grassRand(), 2) * 0.75;
+		const lean = new Vector3((grassRand() - 0.5) * 0.5, 0, (grassRand() - 0.5) * 0.5).multiplyScalar(h);
+		const base = new Vector3(x, y - 0.03, z);
+		const mid = base.clone().add(new Vector3(lean.x * 0.3, h * 0.55, lean.z * 0.3));
+		const tip = base.clone().add(new Vector3(lean.x, h, lean.z));
+		blades.push({ a: base, b: mid, r: 0.007, flexA: 0, flexB: 0.06 });
+		blades.push({ a: mid, b: tip, r: 0.004, flexA: 0.06, flexB: 0.2 });
+	}
+	for (let i = 0; i < 70; i++) {
+		const x = -22 + grassRand() * 48;
+		const z = -2.5 - grassRand() * 5;
+		blades.push(
+			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.05, z), height: 0.6 + grassRand() * 0.9, spread: 1.3, depth: 3, seed: 700 + i, radius: 0.008, children: 3, upBias: 0.8 })
+		);
+	}
+	addRibbons(scene, atmos, blades, { color: rgb(0.04, 0.05, 0.03), minWidthPx: 0.45, lightResponse: 0.8 });
+
 	const lamp = kelvin(4300);
 	const lights: SceneLight[] = [
+		{ position: new Vector3(-5, 2.6, 3), color: kelvin(3400), intensity: 7, pattern: steady, range: 16, scatter: true },
 		{ position: new Vector3(-10, 9, 10), color: lamp, intensity: 1700, pattern: steady, spot: { target: new Vector3(7.5, 14, -15), angle: 0.5 } },
 		{ position: new Vector3(20, 5, -40), color: kelvin(3600), intensity: 900, pattern: steady, range: 80 }
 	];
@@ -141,6 +165,7 @@ export function buildPylons(): BuiltScene {
 		atmos,
 		lights,
 		windiness: 0.5,
+		ao: { radius: 1.5, intensity: 1.2 },
 		shot: { position: camPos, target, fov: 74, refAspect: 0.6, sway: 0.6 },
 		grade: {
 			exposure: 1.35,

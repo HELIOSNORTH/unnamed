@@ -7,8 +7,8 @@ Back-side sphere (r 20 km) that follows the camera; depth pushed to the far plan
 
 ## Surface
 One shader with feature defines:
-- `CANOPY` – worley crowns (two scales) bump the normal and darken gaps; detail fades with `fwidth` footprint to stop shimmer at distance.
-- `SNOW` – snow vs rock by slope/height, wind-carved ripples (anisotropic fbm normal) near the camera, moon glints from a hashed micro-facet per 11 cm cell.
+- `CANOPY` – crowns of varying size (worley) built from sub-clumps (second worley at 3.2×) plus leaf-scale noise; per-crown hue variety (yellow-green, olive, grey-green), near-black gaps via AO. Each detail level fades by its own `fwidth` footprint. Earlier single-scale smooth crowns read as broccoli.
+- `SNOW` – snow vs rock by slope/height; isotropic 3-octave normal detail, each octave faded by pixel footprint (the old stretched ripple pattern aliased into horizontal "hair" lines at grazing angles). Glints: per cell a random micro-facet normal, cell size = max(2.2 cm, next power of two of 1.7× pixel footprint) so each sparkle stays ~1–2 px and stable; two offset layers, 30 % of cells chosen, tinted cool/warm.
 - `GRID` – facade panel lines from world coords on axis-aligned faces.
 - `BAKED_SHADOW` – reads `aShade` (terrain shadow bake). Without the define vShade = 1. Before this define existed, meshes without the attribute read 0 and rendered unlit.
 

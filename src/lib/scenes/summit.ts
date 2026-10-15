@@ -46,8 +46,8 @@ export function buildSummit(): BuiltScene {
 		return h.multiplyScalar(Math.cos(e)).setY(Math.sin(e)).normalize();
 	};
 	const moonDir = heading(11.7, 17);
-	const keyDir = heading(150, 32);
-	const moonLight = rgb(0.1, 0.115, 0.15);
+	const keyDir = moonDir;
+	const moonLight = rgb(0.2, 0.225, 0.29);
 	const atmos = createAtmosphereUniforms({
 		fogLow: rgb(0.007, 0.01, 0.018),
 		fogHigh: rgb(0.001, 0.0012, 0.0018),
@@ -56,7 +56,6 @@ export function buildSummit(): BuiltScene {
 		glowExp: 7,
 		fogDensity: 0.00007,
 		fogFalloff: 0.0004,
-		slab: { bottom: 1250, top: 1900, density: 0.005, scale: 0.00045, color: rgb(0.01, 0.013, 0.022), drift: [0.003, 0.001] },
 		sunDir: keyDir,
 		sunColor: moonLight,
 		ambientSky: rgb(0.005, 0.007, 0.013),
@@ -95,7 +94,7 @@ export function buildSummit(): BuiltScene {
 				albedo: rgb(0.06, 0.06, 0.065),
 				albedo2: rgb(0.04, 0.04, 0.045),
 				snow: { color: rgb(0.4, 0.43, 0.5), slope: 0.74, minHeight: 1500 },
-				sparkle: 4,
+				sparkle: 7,
 				wrap: 0.1,
 				bakedShadow: true
 			})
@@ -176,11 +175,13 @@ export function buildSummit(): BuiltScene {
 		atmos,
 		lights,
 		windiness: 1.0,
+		ao: { radius: 2, intensity: 1.2 },
+		shadow: { center: new Vector3(TOWER.x - 15, PEAK, TOWER.z + 150), radius: 300, depth: 2600, lightAngle: 0.0045 },
 		volume: {
 			range: 420,
-			density: 0.012,
+			density: 0.007,
 			base: PEAK + 4,
-			falloff: 0.11,
+			falloff: 0.2,
 			noiseScale: 0.022,
 			noiseStrength: 1,
 			coverage: 0.48,
@@ -189,8 +190,8 @@ export function buildSummit(): BuiltScene {
 			ambient: rgb(0.007, 0.009, 0.015),
 			ground: rgb(0.004, 0.005, 0.008),
 			lights: 1,
-			sun: 0.9,
-			steps: 48
+			sun: 1.0,
+			steps: 80
 		},
 		shot: { position: camPos, target, fov: 54, refAspect: 0.67, sway: 0.8 },
 		grade: {
@@ -204,7 +205,9 @@ export function buildSummit(): BuiltScene {
 			halation: 0.35,
 			grain: 0.03,
 			vignette: 0.6,
-			aberration: 0.008
+			aberration: 0.008,
+			streak: 0.03,
+			flare: 0.03,
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

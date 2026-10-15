@@ -23,11 +23,11 @@ export function buildBeacon(): BuiltScene {
 		glowColor: rgb(0.018, 0.008, 0.006),
 		glowDir: new Vector3(0.35, 0.0, -1),
 		glowExp: 6,
-		fogDensity: 0.00014,
+		fogDensity: 0.00024,
 		fogFalloff: 0.003,
 		ambientSky: rgb(0.02, 0.019, 0.026),
 		ambientGround: rgb(0.006, 0.004, 0.004),
-		lightScatter: 0.22,
+		lightScatter: 0.32,
 		phaseG: 0.92,
 		isotropic: 0.002
 	});
@@ -196,6 +196,23 @@ export function buildBeacon(): BuiltScene {
 		atmos,
 		lights,
 		windiness: 0.55,
+		ao: { radius: 2.5, intensity: 1.2 },
+		volume: {
+			range: 900,
+			density: 0.0016,
+			base: 18,
+			falloff: 0.016,
+			noiseScale: 0.006,
+			noiseStrength: 0.75,
+			coverage: 0.42,
+			detail: 2.7,
+			wind: [1.6, 0.1, 0.6],
+			ambient: rgb(0.03, 0.024, 0.03),
+			ground: rgb(0.008, 0.006, 0.006),
+			lights: 1.4,
+			sun: 0,
+			steps: 72
+		},
 		shot: { position: camPos, target, fov: 14, refAspect: 1.55 },
 		grade: {
 			exposure: 1.15,
@@ -209,7 +226,9 @@ export function buildBeacon(): BuiltScene {
 			grain: 0.03,
 			vignette: 0.45,
 			aberration: 0.006,
-			flare: 0.02,
+			flare: 0.03,
+			streak: 0.05,
+			streakTint: rgb(1, 0.85, 0.85),
 			dirt: 0.8
 		},
 		update: (_t, levels) => updateSprites(levels)

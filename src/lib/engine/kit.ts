@@ -6,6 +6,7 @@ import { createPointsMaterial, createRibbonMaterial, createSkyMaterial, type Rib
 import type { Grade } from './post.ts';
 import type { VolumeSettings } from './volumetrics.ts';
 import type { Shot } from './rig.ts';
+import type { ShadowSettings } from './shadows.ts';
 
 export interface BuiltScene {
 	scene: Scene;
@@ -15,6 +16,8 @@ export interface BuiltScene {
 	lights: SceneLight[];
 	windiness: number;
 	volume?: VolumeSettings;
+	shadow?: ShadowSettings;
+	ao?: { radius: number; intensity: number };
 	update?: (t: number, levels: number[]) => void;
 }
 

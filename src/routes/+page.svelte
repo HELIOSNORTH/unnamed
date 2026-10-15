@@ -15,6 +15,7 @@
 	let titleVisible = $state(false);
 	let debug = $state(false);
 	let stats = $state<EngineStats | null>(null);
+	let fps = $state(0);
 	let audioLevel = $state<{ rms: number; peak: number } | null>(null);
 	let failed = $state(false);
 
@@ -121,6 +122,7 @@
 
 		const windTick = setInterval(() => {
 			sound?.setWind(e.wind);
+			fps = e.stats()?.fps ?? 0;
 			if (debug) {
 				stats = e.stats();
 				audioLevel = sound?.levelDb() ?? null;
@@ -242,6 +244,13 @@
 			</button>
 		</div>
 	{/if}
+
+	<div
+		class="pointer-events-none absolute right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] font-mono text-[11px] font-medium tracking-[0.04em] text-[var(--ink-soft)] tabular-nums"
+		aria-hidden="true"
+	>
+		{fps.toFixed(0)} FPS
+	</div>
 
 	{#if debug && stats}
 		<pre class="glass absolute top-[max(20px,env(safe-area-inset-top))] left-[max(20px,env(safe-area-inset-left))] m-0 rounded-2xl px-4 py-3 font-mono text-[11px] leading-5 text-[var(--ink-soft)] tabular-nums">fps      {stats.fps.toFixed(0)}

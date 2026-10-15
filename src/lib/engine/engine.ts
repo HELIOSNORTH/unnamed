@@ -5,6 +5,7 @@ import { viewport } from './materials.ts';
 import { noise1 } from './noise.ts';
 import { Pipeline } from './post.ts';
 import { HandheldRig } from './rig.ts';
+import { ShadowMap } from './shadows.ts';
 
 export interface SceneEntry {
 	build: () => BuiltScene;
@@ -30,6 +31,7 @@ export class Engine {
 	private camera = new PerspectiveCamera(30, 1, 0.5, 60000);
 	private rig = new HandheldRig();
 	private pipeline: Pipeline;
+	private shadows = new ShadowMap();
 	private built = new Map<number, BuiltScene>();
 	private current = -1;
 	private pending = -1;
@@ -41,11 +43,9 @@ export class Engine {
 	private canvasSize = new Vector2();
 	private scale = 1;
 	private maxScale = 1;
-	private frameTimes: number[] = [];
-	private readonly minScale = 0.5;
 	private lastStats: EngineStats | null = null;
-	private adaptive = true;
 	private lastBuildMs = 0;
+	private fpsAvg = 60;
 	wind = 0;
 	onSwap?: (index: number) => void;
 
@@ -57,7 +57,7 @@ export class Engine {
 		this.renderer.autoClear = true;
 		this.renderer.info.autoReset = false;
 		this.pipeline = new Pipeline(this.renderer);
-		this.maxScale = Math.min(window.devicePixelRatio || 1, 2);
+		this.maxScale = window.devicePixelRatio || 1;
 		this.scale = this.maxScale;
 		canvas.addEventListener('webglcontextlost', (e) => {
 			e.preventDefault();
@@ -100,7 +100,6 @@ export class Engine {
 		this.phase = 'idle';
 		this.fade = 1;
 		this.time = time;
-		this.adaptive = false;
 	}
 
 	prebuild(i: number): void {
@@ -111,7 +110,8 @@ export class Engine {
 		this.current = i;
 		this.pending = -1;
 		const b = this.ensure(i);
-		this.pipeline.setScene(b.grade, b.atmos, b.volume);
+		this.pipeline.setScene(b.grade, b.atmos, b.volume, b.ao);
+		if (b.shadow) this.shadows.render(this.renderer, b.scene, b.atmos, b.shadow);
 		this.rig.fit(this.camera, b.shot, this.canvasSize.x / this.canvasSize.y);
 		this.onSwap?.(i);
 	}
@@ -119,9 +119,9 @@ export class Engine {
 	resize(): void {
 		const w = Math.max(1, this.canvas.clientWidth);
 		const h = Math.max(1, this.canvas.clientHeight);
-		const dpr = Math.min(window.devicePixelRatio || 1, 2);
+		const dpr = window.devicePixelRatio || 1;
 		this.maxScale = dpr;
-		this.scale = Math.min(this.scale, dpr);
+		this.scale = dpr;
 		this.canvasSize.set(Math.round(w * dpr), Math.round(h * dpr));
 		this.renderer.setPixelRatio(1);
 		this.renderer.setSize(this.canvasSize.x, this.canvasSize.y, false);
@@ -154,29 +154,11 @@ export class Engine {
 		this.raf = 0;
 	}
 
-	private adapt(dtMs: number): void {
-		if (!this.adaptive) return;
-		this.frameTimes.push(dtMs);
-		const total = this.frameTimes.reduce((a, b) => a + b, 0);
-		if (total < 800 || this.frameTimes.length < 8) return;
-		const sorted = [...this.frameTimes].sort((a, b) => a - b);
-		const median = sorted[sorted.length >> 1];
-		this.frameTimes.length = 0;
-		if (median > 24 && this.scale > this.minScale) {
-			this.scale = Math.max(this.minScale, this.scale * Math.max(0.6, Math.sqrt(16.7 / median)));
-			this.applyScale();
-		} else if (median < 17.5 && this.scale < this.maxScale) {
-			this.scale = Math.min(this.maxScale, this.scale * 1.05);
-			this.applyScale();
-		}
-	}
-
 	private frame(now: number): void {
 		const dtMs = now - this.last;
 		this.last = now;
 		const dt = Math.min(dtMs / 1000, 0.1);
 		this.time += dt;
-		this.adapt(dtMs);
 		this.recordStats(dtMs);
 		this.renderer.info.reset();
 
@@ -208,8 +190,9 @@ export class Engine {
 	private recordStats(dtMs: number): void {
 		const info = this.renderer.info;
 		const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+		this.fpsAvg += (1000 / Math.max(dtMs, 1) - this.fpsAvg) * 0.05;
 		this.lastStats = {
-			fps: 1000 / Math.max(dtMs, 1),
+			fps: this.fpsAvg,
 			frameMs: dtMs,
 			renderScale: this.scale / this.maxScale,
 			drawCalls: info.render.calls,
@@ -230,6 +213,7 @@ export class Engine {
 		this.built.forEach((b) => disposeScene(b.scene));
 		this.built.clear();
 		this.pipeline.dispose();
+		this.shadows.dispose();
 		this.renderer.dispose();
 	}
 }

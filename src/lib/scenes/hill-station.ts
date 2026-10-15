@@ -33,14 +33,14 @@ const ground = (x: number, z: number) => landform(x, z) + canopy(x, z);
 export function buildHillStation(): BuiltScene {
 	const scene = new Scene();
 	const atmos = createAtmosphereUniforms({
-		fogLow: rgb(0.3, 0.27, 0.3),
-		fogHigh: rgb(0.24, 0.22, 0.26),
-		glowColor: rgb(0.035, 0.018, 0.008),
+		fogLow: rgb(0.022, 0.034, 0.068),
+		fogHigh: rgb(0.01, 0.018, 0.045),
+		glowColor: rgb(0.016, 0.01, 0.006),
 		glowDir: new Vector3(-0.6, 0.05, -1),
 		glowExp: 2,
-		fogDensity: 0.00011,
+		fogDensity: 0.00018,
 		fogFalloff: 0.0016,
-		ambientSky: rgb(0.2, 0.19, 0.22),
+		ambientSky: rgb(0.014, 0.022, 0.045),
 		ambientGround: rgb(0.004, 0.005, 0.004),
 		lightScatter: 0.35,
 		phaseG: 0.55,
@@ -48,10 +48,10 @@ export function buildHillStation(): BuiltScene {
 	});
 
 	addSky(scene, atmos, {
-		zenith: rgb(0.21, 0.195, 0.23),
-		horizon: rgb(0.27, 0.245, 0.27),
+		zenith: rgb(0.005, 0.01, 0.032),
+		horizon: rgb(0.02, 0.03, 0.062),
 		curve: 0.7,
-		clouds: { amount: 0.6, height: 2600, scale: 0.00022, color: rgb(0.19, 0.175, 0.21), underlight: rgb(0.05, 0.035, 0.03), speed: [2, 0.6] }
+		clouds: { amount: 0.6, height: 2600, scale: 0.00022, color: rgb(0.012, 0.02, 0.042), underlight: rgb(0.012, 0.009, 0.008), speed: [2, 0.6] }
 	});
 
 	const forestMat = createSurfaceMaterial(atmos, {
@@ -138,6 +138,7 @@ export function buildHillStation(): BuiltScene {
 		atmos,
 		lights,
 		windiness: 0.3,
+		ao: { radius: 3, intensity: 1.4 },
 		volume: {
 			range: 1500,
 			density: 0.0035,
@@ -148,7 +149,7 @@ export function buildHillStation(): BuiltScene {
 			coverage: 0.5,
 			detail: 2.7,
 			wind: [2.2, 0.15, 0.8],
-			ambient: rgb(0.27, 0.25, 0.28),
+			ambient: rgb(0.02, 0.03, 0.06),
 			ground: rgb(0.03, 0.035, 0.03),
 			lights: 1,
 			sun: 0,
@@ -160,14 +161,16 @@ export function buildHillStation(): BuiltScene {
 			lift: rgb(0.004, 0.004, 0.006),
 			gamma: rgb(1.0, 1.0, 1.0),
 			gain: rgb(1.0, 1.0, 1.0),
-			saturation: 1.1,
+			saturation: 1.2,
 			contrast: 1.06,
 			bloom: 0.06,
 			halation: 0.45,
 			grain: 0.032,
 			vignette: 0.4,
 			aberration: 0.007,
-			flare: 0.015,
+			flare: 0.03,
+			streak: 0.04,
+			streakTint: rgb(1, 0.9, 0.75),
 			softness: 0
 		},
 		update: (_t, levels) => updateSprites(levels)

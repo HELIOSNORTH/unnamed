@@ -204,10 +204,12 @@ export function buildLaunch(): BuiltScene {
 		atmos,
 		lights,
 		windiness: 0.4,
+		ao: { radius: 3, intensity: 1.3 },
+		shadow: { center: new Vector3(PAD.x, 0, PAD.z + 140), radius: 420, depth: 3000, lightAngle: 0.05 },
 		shot: { position: camPos, target, fov: 31, refAspect: 1.5, sway: 0.7 },
 		volume: {
 			range: 3500,
-			density: 0.00012,
+			density: 0.0002,
 			base: 350,
 			falloff: 0.004,
 			noiseScale: 0.0018,

@@ -18,7 +18,16 @@
 - Light range falloff; per-scene photo comparison harness (`scripts/compare.mjs`, `scripts/compare-montage.py`).
 - All five scenes re-composed and re-lit against their reference photos (band colours within ~10–15 RGB, object positions solved from photo pixel positions).
 
-## M3 — Next candidates
+## M3 — Ultra pass (2026-10-15) ✅
+
+- Always native resolution, all effects at maximum; FPS counter bottom right.
+- 4096² PCSS shadow maps (Summit backlit by the moon, Launch soft sun), shadowed light shafts in the fog volume, SSAO.
+- 96³ Perlin-Worley fog noise with domain warp and rotated octaves (fixes visible lines in moving fog).
+- Lens: horizontal streaks, stronger ghosts and dirt, sharpen option.
+- Textures: rebuilt snow (no aliasing streaks, stable glint sparkle), rebuilt forest canopy.
+- Scenes: Beacon ground fog, Hill Station dark blue evening, Pylons grassy embankment instead of a black bar.
+
+## M4 — Next candidates
 
 - Measure frame times on Apple Silicon and a mid-range Windows laptop; tune adaptive scale thresholds from those numbers.
 - Listening pass on headphones and speakers; adjust per-voice levels.

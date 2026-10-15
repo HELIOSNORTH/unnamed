@@ -66,7 +66,10 @@ const marchFrag = /* glsl */ `
 	float volDensity(vec3 p) {
 		float h = min(exp(-uVol.w * (p.y - uVol.z)), 6.0);
 		vec3 q = (p - uVolWind * uTime) * uVolNoise.x;
-		float n = texture(tNoise, q).r * 0.64 + texture(tNoise, q * uVolNoise.w + vec3(0.37, 0.11, 0.73)).r * 0.36;
+		vec3 warp = texture(tNoise, q * 0.31 + vec3(0.5, 0.2, 0.7)).rrr;
+		q += (vec3(warp.x, texture(tNoise, q * 0.29 + 0.41).r, texture(tNoise, q * 0.27 + 0.83).r) - 0.5) * 0.45;
+		const mat3 ROT3 = mat3(0.36, 0.48, -0.8, -0.8, 0.6, 0.0, 0.48, 0.64, 0.6);
+		float n = texture(tNoise, q).r * 0.64 + texture(tNoise, ROT3 * q * uVolNoise.w + uVolWind * uTime * 0.03 * uVolNoise.x).r * 0.36;
 		float m = smoothstep(uVolNoise.z, uVolNoise.z + 0.32, n);
 		return uVol.y * h * mix(1.0, m * 2.3, uVolNoise.y);
 	}
@@ -98,7 +101,7 @@ const marchFrag = /* glsl */ `
 			vec3 p = uCamPos + rd * (0.5 * (t0 + t1));
 			float d = volDensity(p);
 			if (d < 1e-6) continue;
-			vec3 lin = mix(uVolGround, uVolAmbient, 0.65) + uSunColor * sunPhase * uVolLight.y;
+			vec3 lin = mix(uVolGround, uVolAmbient, 0.65) + uSunColor * (sunPhase * uVolLight.y * shadowHard(p));
 			for (int k = 0; k < MAX_LIGHTS; k++) {
 				if (k >= uLightCount) break;
 				vec3 lv = p - uLightPos[k];

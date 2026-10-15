@@ -1,4 +1,4 @@
-import { Color, Vector3, Vector4, type IUniform } from 'three';
+import { Color, Matrix4, Vector3, Vector4, type IUniform } from 'three';
 
 export const MAX_LIGHTS = 12;
 
@@ -52,7 +52,10 @@ export function createAtmosphereUniforms(s: AtmosphereSettings): AtmosphereUnifo
 		uLightCount: { value: 0 },
 		uLightScatter: { value: s.lightScatter ?? 1 },
 		uPhase: { value: [s.phaseG ?? 0.75, s.isotropic ?? 0.02] },
-		uSkyDist: { value: s.skyDist ?? 30000 }
+		uSkyDist: { value: s.skyDist ?? 30000 },
+		uShadowMap: { value: null },
+		uShadowMatrix: { value: new Matrix4() },
+		uShadowParams: { value: new Vector4(0, 0, 0, 0) }
 	};
 }
 
@@ -85,6 +88,9 @@ uniform int uLightCount;
 uniform float uLightScatter;
 uniform vec2 uPhase;
 uniform float uSkyDist;
+uniform sampler2D uShadowMap;
+uniform mat4 uShadowMatrix;
+uniform vec4 uShadowParams;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -268,6 +274,55 @@ vec3 pointLighting(vec3 p, vec3 n, float wrap) {
 		acc += uLightCol[i] * (uLightSurf[i] * spotFactor(i, -L) * rangeFactor(i, d2) * max(ndl, 0.0) / (d2 + 1.0));
 	}
 	return acc;
+}
+
+const vec2 POISSON16[16] = vec2[](
+	vec2(-0.94201624, -0.39906216), vec2(0.94558609, -0.76890725), vec2(-0.09418410, -0.92938870), vec2(0.34495938, 0.29387760),
+	vec2(-0.91588581, 0.45771432), vec2(-0.81544232, -0.87912464), vec2(-0.38277543, 0.27676845), vec2(0.97484398, 0.75648379),
+	vec2(0.44323325, -0.97511554), vec2(0.53742981, -0.47373420), vec2(-0.26496911, -0.41893023), vec2(0.79197514, 0.19090188),
+	vec2(-0.24188840, 0.99706507), vec2(-0.81409955, 0.91437590), vec2(0.19984126, 0.78641367), vec2(0.14383161, -0.14100790)
+);
+
+vec3 shadowCoord(vec3 p) {
+	vec4 sc = uShadowMatrix * vec4(p, 1.0);
+	return sc.xyz / sc.w * 0.5 + 0.5;
+}
+
+float shadowHard(vec3 p) {
+	if (uShadowParams.x < 0.5) return 1.0;
+	vec3 s = shadowCoord(p);
+	if (s.x < 0.0 || s.y < 0.0 || s.x > 1.0 || s.y > 1.0 || s.z > 1.0) return 1.0;
+	return step(s.z - uShadowParams.z, texture(uShadowMap, s.xy).r);
+}
+
+float shadowFactor(vec3 p, vec3 n) {
+	if (uShadowParams.x < 0.5) return 1.0;
+	vec3 s = shadowCoord(p + n * 0.12);
+	if (s.x < 0.0 || s.y < 0.0 || s.x > 1.0 || s.y > 1.0 || s.z > 1.0) return 1.0;
+	float z = s.z - uShadowParams.z;
+	float a = hash13(p * 53.17 + fract(uTime * 7.0) * 97.0) * 6.2831853;
+	mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
+	float search = uShadowParams.w * 24.0;
+	float blockers = 0.0;
+	float sum = 0.0;
+	for (int i = 0; i < 16; i++) {
+		float d = texture(uShadowMap, s.xy + R * POISSON16[i] * search).r;
+		if (d < z) {
+			sum += d;
+			blockers += 1.0;
+		}
+	}
+	if (blockers < 0.5) return 1.0;
+	float avg = sum / blockers;
+	float radius = clamp((z - avg) * uShadowParams.y, uShadowParams.w * 1.5, uShadowParams.w * 24.0);
+	float lit = 0.0;
+	for (int i = 0; i < 16; i++) lit += step(z, texture(uShadowMap, s.xy + R * POISSON16[i] * radius).r);
+	return lit / 16.0;
+}
+
+vec3 sunLight(vec3 n, float wrap) {
+	float ndl = (dot(n, uSunDir) + wrap) / (1.0 + wrap);
+	return uSunColor * max(ndl, 0.0);
 }
 
 vec3 directLight(vec3 p, vec3 n, float wrap) {

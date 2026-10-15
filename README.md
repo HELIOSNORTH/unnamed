@@ -21,6 +21,8 @@ node scripts/compare.mjs <photos> 0,1,2,3,4 21 shots 560 && python3 scripts/comp
 
 ## Controls
 
+FPS counter is always shown bottom right. Rendering always runs at native resolution with every effect at maximum.
+
 ← / → or swipe: previous / next scene · 1–5: jump · M: mute · F: full screen · D: debug HUD (fps, frame time, render scale, draw calls, GPU memory objects, JS heap, scene build time, audio RMS/peak).
 
 ## Stack and why
@@ -29,6 +31,7 @@ node scripts/compare.mjs <photos> 0,1,2,3,4 21 shots 560 && python3 scripts/comp
 | --- | --- |
 | Three.js, but only `ShaderMaterial`s | Every surface runs the same analytic atmosphere code, so fog, aerial perspective and light glow match across sky, terrain and towers. Built-in materials would need patching to do that. |
 | Forward (per-fragment) fog instead of a depth-based post pass | Lattice towers are sub-pixel lines. A post pass would fog their MSAA-resolved edge pixels with the wrong depth and draw halos. See `src/lib/engine/atmosphere.ts-cvf.md`. |
+| Shadow maps (PCSS), SSAO, raymarched fog | Browsers expose no hardware ray tracing (WebGL2 or WebGPU). The closest equivalents: soft contact-hardening shadow maps, ambient occlusion traced through the depth buffer, and fog raymarched per pixel with shadowed light. See `shadows.ts-cvf.md`, `post.ts-cvf.md`. |
 | Raymarched volumetric fog | Browsers have no hardware ray tracing; per-pixel raymarching through 3D noise with temporal accumulation gives drifting mist that lights catch. See `src/lib/engine/volumetrics.ts-cvf.md`. |
 | Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR + depth → volume → 7-level bloom → lens ghosts → one composite pass (lens dirt, distortion, aberration, AgX, grade, film grain/softness/weave, fade). |
 | Procedural Web Audio, no audio files | Ships as one file, no licensing, and wind gusts drive camera sway and wind sound from one shared signal. |
@@ -52,6 +55,7 @@ Context that the code cannot carry lives in CVF files next to the code (`<file>-
 - `src/lib/engine/materials.ts-cvf.md` – sky, surface (canopy, snow, facade), ribbon lines, points
 - `src/lib/engine/post.ts-cvf.md` – HDR pipeline, lens model, film stock, AgX caveats
 - `src/lib/engine/volumetrics.ts-cvf.md` – raymarched mist, temporal resolve
+- `src/lib/engine/shadows.ts-cvf.md` – directional shadow map, PCSS
 - `src/lib/engine/noise3d.ts-cvf.md` – 3D cloud noise texture
 - `src/lib/engine/geometry.ts-cvf.md` – terrain meshes, shadow bake, ribbon layout
 - `src/lib/engine/engine.ts-cvf.md` – loop, transitions, adaptive resolution, health hooks
@@ -61,7 +65,7 @@ Context that the code cannot carry lives in CVF files next to the code (`<file>-
 
 ## Resource budget
 
-Measured in headless Chromium (2026-10-14): scene builds 0.2–2.3 s (done while the screen is black between scenes), 130k–630k triangles, 26–74 draw calls, 1 HDR MSAA target + 7 half-float bloom mips. Built scenes are cached for the session (memory grows with each first visit, then stays flat). Nothing allocates per frame except small uniform updates. Rendering pauses and audio suspends when the tab is hidden. Render scale drops automatically when the median frame time exceeds 24 ms.
+Measured in headless Chromium (2026-10-14): scene builds 0.2–2.3 s (done while the screen is black between scenes), 130k–630k triangles, 26–74 draw calls, 1 HDR MSAA target + 7 half-float bloom mips. Built scenes are cached for the session (memory grows with each first visit, then stays flat). Nothing allocates per frame except small uniform updates. Rendering pauses and audio suspends when the tab is hidden. No adaptive resolution: frame rate is allowed to drop (owner's choice).
 
 ## Known limits
 
