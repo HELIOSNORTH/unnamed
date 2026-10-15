@@ -151,9 +151,9 @@ export function buildHillStation(): BuiltScene {
 			wind: [2.2, 0.15, 0.8],
 			ambient: rgb(0.02, 0.03, 0.06),
 			ground: rgb(0.03, 0.035, 0.03),
-			lights: 1,
+			lights: 0.35,
 			sun: 0,
-			steps: 56
+			steps: 28
 		},
 		shot: { position: camPos, target, fov: 16, refAspect: 1.5 },
 		grade: {

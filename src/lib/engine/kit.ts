@@ -23,7 +23,7 @@ export interface BuiltScene {
 
 export function addSky(scene: Scene, atmos: AtmosphereUniforms, s: SkySettings): Mesh {
 	const sky = new Mesh(new SphereGeometry(20000, 64, 32), createSkyMaterial(atmos, s));
-	sky.renderOrder = -10;
+	sky.renderOrder = 1;
 	sky.frustumCulled = false;
 	sky.onBeforeRender = (_r, _s, cam) => sky.position.copy(cam.position);
 	scene.add(sky);

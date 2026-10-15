@@ -221,7 +221,7 @@ export function buildLaunch(): BuiltScene {
 			ground: rgb(0.08, 0.14, 0.14),
 			lights: 1,
 			sun: 0.2,
-			steps: 48
+			steps: 28
 		},
 		grade: {
 			exposure: 0.95,

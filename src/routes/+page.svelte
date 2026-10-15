@@ -16,6 +16,8 @@
 	let debug = $state(false);
 	let stats = $state<EngineStats | null>(null);
 	let fps = $state(0);
+	let profilingShown = false;
+	let passes = $state<Record<string, number>>({});
 	let audioLevel = $state<{ rms: number; peak: number } | null>(null);
 	let failed = $state(false);
 
@@ -123,7 +125,12 @@
 		const windTick = setInterval(() => {
 			sound?.setWind(e.wind);
 			fps = e.stats()?.fps ?? 0;
+			if (debug !== profilingShown) {
+				profilingShown = debug;
+				e.setProfiling(debug);
+			}
 			if (debug) {
+				passes = { ...e.passTimings() };
 				stats = e.stats();
 				audioLevel = sound?.levelDb() ?? null;
 			}
@@ -149,7 +156,11 @@
 			stats: () => e.stats(),
 			begin: () => begin(),
 			select: (i: number) => select(i),
-			audio: () => sound?.levelDb() ?? null
+			audio: () => sound?.levelDb() ?? null,
+			profile: (on: boolean) => e.setProfiling(on),
+			toggle: (f: { volume?: boolean; ao?: boolean; shadows?: boolean }) => e.debugToggle(f),
+			hide: (kinds: string[]) => e.debugHide(kinds),
+			passes: () => e.passTimings()
 		};
 
 		return () => {
@@ -262,7 +273,8 @@ geoms    {stats.geometries}
 textures {stats.textures}
 heap     {stats.heapMb === null ? 'n/a' : stats.heapMb.toFixed(1) + ' MB'}
 build    {stats.buildMs.toFixed(0)} ms
-audio    {audioLevel ? `${audioLevel.rms.toFixed(1)} dB rms · ${audioLevel.peak.toFixed(1)} dB peak` : 'off'}</pre>
+{#each Object.entries(passes) as [name, ms] (name)}{name.padEnd(9)}{ms.toFixed(1)} ms
+{/each}audio    {audioLevel ? `${audioLevel.rms.toFixed(1)} dB rms · ${audioLevel.peak.toFixed(1)} dB peak` : 'off'}</pre>
 	{/if}
 </main>
 

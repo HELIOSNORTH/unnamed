@@ -50,7 +50,7 @@ export function createSkyMaterial(atmos: AtmosphereUniforms, s: SkySettings): Sh
 				vec4 w = modelMatrix * vec4(position, 1.0);
 				vWorld = w.xyz;
 				gl_Position = projectionMatrix * viewMatrix * w;
-				gl_Position.z = gl_Position.w * 0.99999;
+				gl_Position.z = gl_Position.w * 0.9999999;
 			}
 		`,
 		fragmentShader: /* glsl */ `
@@ -118,7 +118,7 @@ export function createSkyMaterial(atmos: AtmosphereUniforms, s: SkySettings): Sh
 				if (uCloud.x > 0.0 && rd.y > 0.002) {
 					float t = (uCloud.y - cameraPosition.y) / rd.y;
 					vec2 p = (cameraPosition.xz + rd.xz * t) * uCloud.z + uCloudSpeed * uTime * 0.01;
-					float n = fbm2(p) * 0.65 + fbm2(p * 3.1 + 7.0) * 0.35;
+					float n = fbm3o(p) * 0.65 + fbm3o(p * 3.1 + 7.0) * 0.35;
 					float cov = smoothstep(1.0 - uCloud.x, 1.05 - uCloud.x * 0.4, n);
 					vec3 cc = uCloudColor * (0.65 + 0.7 * n) + uCloudUnder * smoothstep(0.35, 0.0, rd.y) * (0.6 + 0.6 * n);
 					col = mix(col, cc, cov * smoothstep(0.02, 0.25, rd.y));
@@ -218,19 +218,17 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 			varying float vShade;
 
 			vec3 worley(vec2 p) {
-				vec2 i = floor(p);
-				vec2 f = fract(p);
+				vec2 i = floor(p - 0.5);
 				float f1 = 9.0;
 				float id = 0.0;
-				for (int y = -1; y <= 1; y++) {
-					for (int x = -1; x <= 1; x++) {
-						vec2 g = vec2(float(x), float(y));
-						vec2 o = hash22(i + g) * 0.8 + 0.1;
-						float d = length(g + o - f);
-						if (d < f1) { f1 = d; id = hash12(i + g + 17.0); }
-					}
+				for (int k = 0; k < 4; k++) {
+					vec2 c = i + vec2(float(k & 1), float(k >> 1));
+					vec2 o = hash22(c) * 0.8 + 0.1;
+					vec2 d = c + o - p;
+					float dd = dot(d, d);
+					if (dd < f1) { f1 = dd; id = hash12(c + 17.0); }
 				}
-				return vec3(f1, id, 0.0);
+				return vec3(sqrt(f1), id, 0.0);
 			}
 
 			float crownHeight(vec2 p, out float id, out float body) {
@@ -243,18 +241,16 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				return body * (0.62 + 0.38 * clump) + 0.06 * vnoise(p * 11.0);
 			}
 
-			float crown(vec2 p) {
-				float id;
-				float body;
-				return crownHeight(p, id, body);
-			}
-
 			void main() {
 				vec3 n = normalize(vNormal);
 				vec3 p = vWorld;
 				vec3 V = normalize(cameraPosition - p);
+				#ifdef CANOPY
+				vec3 albedo = uAlbedo;
+				#else
 				float var = fbm2(p.xz * uVariation.y);
 				vec3 albedo = mix(uAlbedo, uAlbedo2, smoothstep(0.3, 0.7, var) * uVariation.x / 0.3);
+				#endif
 				float ao = 1.0;
 
 				#ifdef CANOPY
@@ -265,11 +261,14 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				float crownId;
 				float body;
 				float h0 = crownHeight(cp, crownId, body);
-				float e = 0.06;
-				float hx = crown(cp + vec2(e, 0.0));
-				float hz = crown(cp + vec2(0.0, e));
-				vec2 grad = vec2(hx - h0, hz - h0) / e;
-				vec2 leafG = vec2(vnoise(p.xz * 2.6 + 3.0) - vnoise(p.xz * 2.6 - 3.0), vnoise(p.zx * 2.6 + 7.0) - vnoise(p.zx * 2.6 - 7.0));
+				vec2 dcx = dFdx(cp);
+				vec2 dcy = dFdy(cp);
+				float det = dcx.x * dcy.y - dcx.y * dcy.x;
+				vec2 grad = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(h0) - dcx.y * dFdy(h0), -dcy.x * dFdx(h0) + dcx.x * dFdy(h0)) / det : vec2(0.0);
+				grad = clamp(grad, vec2(-4.0), vec2(4.0));
+				float leafH = vnoise(p.xz * 2.6 + 3.0);
+				vec2 leafG = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(leafH) - dcx.y * dFdy(leafH), -dcy.x * dFdx(leafH) + dcx.x * dFdy(leafH)) / det / (uCanopy.x * 2.6) : vec2(0.0);
+				leafG = clamp(leafG, vec2(-1.0), vec2(1.0));
 				vec3 bumped = normalize(n - vec3(grad.x, 0.0, grad.y) * 0.5 * uCanopy.y - vec3(leafG.x, 0.0, leafG.y) * 0.8 * leafDetail);
 				n = normalize(mix(n, bumped, detail));
 				float hue = fract(crownId * 7.31);
@@ -283,15 +282,28 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				#ifdef SNOW
 				float camDist = length(cameraPosition - p);
 				float footS = length(fwidth(p.xz));
-				vec2 g1 = vec2(fbm2(p.xz * 0.18 + 0.05) - fbm2(p.xz * 0.18 - 0.05), fbm2(p.zx * 0.18 + 0.05) - fbm2(p.zx * 0.18 - 0.05)) * 6.0;
-				vec2 g2 = vec2(vnoise(p.xz * 1.9 + 0.1) - vnoise(p.xz * 1.9 - 0.1), vnoise(p.zx * 1.9 + 0.1) - vnoise(p.zx * 1.9 - 0.1)) * 3.0;
-				vec2 g3 = vec2(vnoise(p.xz * 7.0 + 0.1) - vnoise(p.xz * 7.0 - 0.1), vnoise(p.zx * 7.0 + 0.1) - vnoise(p.zx * 7.0 - 0.1)) * 1.6;
-				float f1 = 1.0 - smoothstep(1.2, 4.0, footS * 0.18 * 6.0);
-				float f2 = 1.0 - smoothstep(0.25, 0.8, footS * 1.9);
-				float f3 = 1.0 - smoothstep(0.25, 0.8, footS * 7.0);
-				vec2 sg = g1 * 0.22 * f1 + g2 * 0.12 * f2 + g3 * 0.05 * f3;
+				vec2 sg = vec2(0.0);
+				float f1 = 1.0 - smoothstep(1.2, 4.0, footS * 1.08);
+				if (f1 > 0.0) {
+					vec2 q1 = p.xz * 0.18;
+					float c1 = vnoise(q1) * 0.6 + vnoise(q1 * 2.1 + 3.1) * 0.4;
+					vec2 g1 = vec2(vnoise(q1 + vec2(0.05, 0.0)) * 0.6 + vnoise((q1 + vec2(0.05, 0.0)) * 2.1 + 3.1) * 0.4 - c1, vnoise(q1 + vec2(0.0, 0.05)) * 0.6 + vnoise((q1 + vec2(0.0, 0.05)) * 2.1 + 3.1) * 0.4 - c1) * 12.0;
+					sg += g1 * 0.22 * f1;
+					float f2 = 1.0 - smoothstep(0.25, 0.8, footS * 1.9);
+					if (f2 > 0.0) {
+						vec2 q2 = p.xz * 1.9;
+						float c2 = vnoise(q2);
+						sg += vec2(vnoise(q2 + vec2(0.1, 0.0)) - c2, vnoise(q2 + vec2(0.0, 0.1)) - c2) * 10.0 * 0.12 * f2;
+						float f3 = 1.0 - smoothstep(0.25, 0.8, footS * 7.0);
+						if (f3 > 0.0) {
+							vec2 q3 = p.xz * 7.0;
+							float c3 = vnoise(q3);
+							sg += vec2(vnoise(q3 + vec2(0.1, 0.0)) - c3, vnoise(q3 + vec2(0.0, 0.1)) - c3) * 10.0 * 0.05 * f3;
+						}
+					}
+				}
 				n = normalize(n - vec3(sg.x, 0.0, sg.y));
-				float snowN = fbm2(p.xz * 0.05) * 0.25 + fbm2(p.xz * 0.6) * 0.1;
+				float snowN = vnoise(p.xz * 0.05) * 0.25 + vnoise(p.xz * 0.6) * 0.1;
 				float snowAmt = smoothstep(uSnow.x - 0.12, uSnow.x + 0.04, n.y + snowN - 0.12) * smoothstep(uSnow.y - 150.0, uSnow.y + 150.0, p.y + snowN * 400.0);
 				albedo = mix(albedo, uSnowColor * (0.94 + 0.06 * vnoise(p.xz * 0.7)), snowAmt);
 				#endif
@@ -352,8 +364,16 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 }
 
 export const ribbonVertex = /* glsl */ `
+			#ifdef RIBBON_SHADE
+			${glslCommon}
+			uniform vec3 uColor;
+			uniform vec3 uEmissive;
+			uniform float uLightResponse;
+			varying vec3 vShade;
+			#else
 			uniform float uTime;
 			uniform float uWind;
+			#endif
 			uniform float uMinPx;
 			uniform vec2 uResolution;
 			attribute vec3 aStart;
@@ -403,6 +423,12 @@ export const ribbonVertex = /* glsl */ `
 				vEdge = off;
 				vHalf = wPx;
 				vWorld = mix(a, b, aSide.x);
+				#ifdef RIBBON_SHADE
+				vec3 V = normalize(cameraPosition - vWorld);
+				vec3 nApprox = normalize(V + vec3(0.0, 0.35, 0.0));
+				vec3 light = ambientLight(vec3(0.0, 0.3, 0.0)) + uSunColor * 0.45 * shadowFactor(vWorld, vec3(0.0, 1.0, 0.0)) + min(pointLighting(vWorld, nApprox, 1.2) * uLightResponse, vec3(0.6));
+				vShade = applyAtmosphere(uColor * light + uEmissive, vWorld);
+				#endif
 			}
 		`;
 
@@ -424,25 +450,17 @@ export function createRibbonMaterial(atmos: AtmosphereUniforms, s: RibbonSetting
 			uResolution: viewport.resolution,
 			uPxScale: viewport.pxScale
 		}),
+		defines: { RIBBON_SHADE: '' },
 		vertexShader: ribbonVertex,
 		fragmentShader: /* glsl */ `
-			${glslCommon}
-			uniform vec3 uColor;
-			uniform vec3 uEmissive;
-			uniform float uLightResponse;
-			varying vec3 vWorld;
+			varying vec3 vShade;
 			varying float vEdge;
 			varying float vHalf;
 			varying float vCoverage;
 			void main() {
 				float a = clamp(vHalf + 0.5 - abs(vEdge), 0.0, 1.0) * vCoverage;
 				if (a < 0.003) discard;
-				vec3 V = normalize(cameraPosition - vWorld);
-				vec3 nApprox = normalize(V + vec3(0.0, 0.35, 0.0));
-				vec3 light = ambientLight(vec3(0.0, 0.3, 0.0)) + uSunColor * 0.45 * shadowFactor(vWorld, vec3(0.0, 1.0, 0.0)) + pointLighting(vWorld, nApprox, 1.2) * uLightResponse;
-				vec3 col = uColor * light + uEmissive;
-				col = applyAtmosphere(col, vWorld);
-				gl_FragColor = vec4(col, a);
+				gl_FragColor = vec4(vShade, a);
 			}
 		`,
 		transparent: true,
@@ -510,57 +528,6 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 				vec2 fall = 1.0 - abs(q);
 				float spikes = (exp(-a.y * 1.6) * fall.x * fall.x + exp(-a.x * 1.6) * fall.y * fall.y) * uSpikes;
 				gl_FragColor = vec4(vColor * (core + halo + spikes) * edge, 1.0);
-			}
-		`,
-		transparent: true,
-		depthWrite: false,
-		blending: AdditiveBlending
-	});
-}
-
-export function createDriftMaterial(atmos: AtmosphereUniforms, opts: { box: Vector3; windDir: Vector2; speed: number; brightness: number }): ShaderMaterial {
-	return new ShaderMaterial({
-		uniforms: shared(atmos, {
-			uPxScale: viewport.pxScale,
-			uBox: { value: opts.box },
-			uWindDir: { value: opts.windDir.clone().normalize() },
-			uSpeed: { value: opts.speed },
-			uBrightness: { value: opts.brightness }
-		}),
-		vertexShader: /* glsl */ `
-			${glslCommon}
-			uniform float uPxScale;
-			uniform vec3 uBox;
-			uniform vec2 uWindDir;
-			uniform float uSpeed;
-			uniform float uBrightness;
-			attribute vec4 aSeed;
-			varying float vAlpha;
-			void main() {
-				float gust = 0.35 + uWind;
-				vec3 drift = vec3(uWindDir.x, 0.0, uWindDir.y) * uSpeed * uTime * (0.7 + 0.6 * aSeed.w);
-				drift.y = -0.4 * uTime * (0.5 + aSeed.w);
-				vec3 swirl = vec3(sin(uTime * 1.7 + aSeed.x * 40.0), sin(uTime * 2.3 + aSeed.y * 30.0) * 0.6, cos(uTime * 1.3 + aSeed.z * 50.0)) * 0.6;
-				vec3 local = mod(aSeed.xyz * uBox + drift + swirl - cameraPosition, uBox) - uBox * 0.5;
-				vec3 world = cameraPosition + local;
-				world.y = cameraPosition.y - 1.6 + mod(aSeed.y * uBox.y + drift.y, uBox.y) * aSeed.y;
-				vec3 rd = normalize(world - cameraPosition);
-				float forward = pow(max(dot(rd, uSunDir), 0.0), 6.0);
-				float dist = length(world - cameraPosition);
-				vAlpha = uBrightness * gust * (0.35 + 2.5 * forward) * smoothstep(0.5, 2.5, dist) * smoothstep(uBox.x * 0.5, uBox.x * 0.3, dist);
-				vec4 mv = viewMatrix * vec4(world, 1.0);
-				gl_Position = projectionMatrix * mv;
-				gl_PointSize = clamp(18.0 / -mv.z, 1.2, 4.0) * uPxScale;
-			}
-		`,
-		fragmentShader: /* glsl */ `
-			uniform vec3 uSunColor;
-			varying float vAlpha;
-			void main() {
-				vec2 q = gl_PointCoord * 2.0 - 1.0;
-				float r2 = dot(q, q);
-				if (r2 > 1.0) discard;
-				gl_FragColor = vec4(uSunColor * vAlpha * (1.0 - r2), 1.0);
 			}
 		`,
 		transparent: true,

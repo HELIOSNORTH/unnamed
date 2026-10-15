@@ -14,6 +14,7 @@ pnpm check             # svelte-check + TypeScript
 pnpm build             # static single-file site in build/index.html
 pnpm artifact          # build + dist/quiet-signals.html (body-only page for claude.ai artifacts)
 pnpm shots 0,1,2,3,4 960 540 21   # headless screenshots of scenes at t=21 s → shots/
+node scripts/bench.mjs 0,1,2,3,4 480 270   # frame ms per scene with volume/AO/shadows toggled (HIDE=1 also hides object kinds)
 node scripts/compare.mjs <photos> 0,1,2,3,4 21 shots 560 && python3 scripts/compare-montage.py <photos> shots 0,1,2,3,4   # photo vs render
 ```
 

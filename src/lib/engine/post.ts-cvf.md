@@ -4,7 +4,9 @@ Order: scene → half-float 4× MSAA target (+ depth texture) → [SSAO + depth-
 
 Composite: gate weave (per 24 fps frame) → barrel distortion (`distortion`, samples inward so no black corners) → radial chromatic aberration → optional film softness (4-tap blur mix) → bloom lerp (÷ level count) with lens dirt and halation tint → lens ghosts × (0.35 + dirt) → vignette → exposure → AgX → saturation → contrast (power around 0.3) → lift/gamma/gain → grain (`grainSize` px clumps, 24 fps) → flicker → fade → sRGB → dither.
 
-SSAO: 16-sample view-space hemisphere ray test against the depth buffer, normals rebuilt from depth (smaller neighbour difference wins), radius grows slightly with distance, 5×5 depth-weighted blur. Applied before fog/volume so mist is not darkened. Per scene `ao: { radius, intensity }`.
+Profiling: `pipeline.profiling` (D overlay) times passes with a 1-px readback sync; approximate on real GPUs, unreliable in SwiftShader — use `scripts/bench.mjs` ablations there.
+
+SSAO (half resolution, 3×3 depth-aware blur): 16-sample view-space hemisphere ray test against the depth buffer, normals rebuilt from depth (smaller neighbour difference wins), radius grows slightly with distance, 5×5 depth-weighted blur. Applied before fog/volume so mist is not darkened. Per scene `ao: { radius, intensity }`.
 
 Streaks: thresholded ¼-res mip blurred horizontally twice (1.5 and 9 texel steps) → anamorphic-style horizontal flare on bright lights (`streak`, `streakTint`). Negative `softness` = sharpen.
 

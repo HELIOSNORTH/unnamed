@@ -17,6 +17,7 @@ import {
 	Vector2,
 	Vector3,
 	WebGLRenderTarget,
+	type Data3DTexture,
 	type PerspectiveCamera,
 	type Texture,
 	type WebGLRenderer
@@ -96,11 +97,37 @@ const combineFrag = /* glsl */ `
 	uniform sampler2D tScene;
 	uniform sampler2D tVolume;
 	uniform sampler2D tAo;
+	uniform sampler2D tDepth;
+	uniform mat4 uProjInv;
+	uniform vec2 uVolTexel;
 	uniform float uUseVolume;
 	uniform float uUseAo;
 	varying vec2 vUv;
+	float viewZ(vec2 uv) {
+		float d = texture2D(tDepth, uv).r;
+		vec4 p = uProjInv * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+		return -p.z / p.w;
+	}
+	vec4 volumeAt(vec2 uv) {
+		vec2 hp = uv / uVolTexel - 0.5;
+		vec2 base = floor(hp);
+		vec2 f = hp - base;
+		float z0 = viewZ(uv);
+		vec4 acc = vec4(0.0);
+		float wsum = 0.0;
+		for (int k = 0; k < 4; k++) {
+			vec2 o = vec2(float(k & 1), float(k >> 1));
+			vec2 tuv = (base + o + 0.5) * uVolTexel;
+			float bw = (o.x > 0.5 ? f.x : 1.0 - f.x) * (o.y > 0.5 ? f.y : 1.0 - f.y);
+			float dz = abs(viewZ(tuv) - z0) / max(z0, 1.0);
+			float w = (bw + 1e-3) / (1e-3 + dz * 40.0);
+			acc += texture2D(tVolume, tuv) * w;
+			wsum += w;
+		}
+		return acc / wsum;
+	}
 	void main() {
-		vec4 v = uUseVolume > 0.5 ? texture2D(tVolume, vUv) : vec4(0.0, 0.0, 0.0, 1.0);
+		vec4 v = uUseVolume > 0.5 ? volumeAt(vUv) : vec4(0.0, 0.0, 0.0, 1.0);
 		float ao = uUseAo > 0.5 ? texture2D(tAo, vUv).r : 1.0;
 		gl_FragColor = vec4(texture2D(tScene, vUv).rgb * ao * v.a + v.rgb, 1.0);
 	}
@@ -173,9 +200,9 @@ const aoBlurFrag = /* glsl */ `
 		float z0 = viewZ(vUv);
 		float sum = 0.0;
 		float wsum = 0.0;
-		for (int y = -2; y <= 2; y++) {
-			for (int x = -2; x <= 2; x++) {
-				vec2 o = vec2(float(x), float(y)) * uTexel * 1.5;
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				vec2 o = vec2(float(x), float(y)) * uTexel * 1.25;
 				float w = exp(-abs(viewZ(vUv + o) - z0) / (0.02 * abs(z0) + 0.05));
 				sum += texture2D(tAo, vUv + o).r * w;
 				wsum += w;
@@ -335,7 +362,7 @@ const compositeFrag = /* glsl */ `
 		vec3 hdr = sceneAt(uv, ca);
 		if (uSoftness != 0.0) {
 			vec2 o = uTexel * (0.75 + max(uSoftness, 0.0));
-			vec3 blur = (sceneAt(uv + vec2(o.x, 0.0), ca) + sceneAt(uv - vec2(o.x, 0.0), ca) + sceneAt(uv + vec2(0.0, o.y), ca) + sceneAt(uv - vec2(0.0, o.y), ca)) * 0.25;
+			vec3 blur = (texture2D(tScene, uv + o * vec2(0.5, 0.5)).rgb + texture2D(tScene, uv + o * vec2(-0.5, 0.5)).rgb + texture2D(tScene, uv + o * vec2(0.5, -0.5)).rgb + texture2D(tScene, uv - o * 0.5).rgb) * 0.25;
 			hdr = uSoftness > 0.0 ? mix(hdr, blur, clamp(uSoftness, 0.0, 1.0) * 0.8) : max(hdr + (hdr - blur) * -uSoftness, 0.0);
 		}
 		vec3 bloom = texture2D(tBloom, uv).rgb / 7.0;
@@ -437,6 +464,21 @@ export class Pipeline {
 	private aoBlur: ShaderMaterial;
 	private streak: ShaderMaterial;
 	private aoSettings: { radius: number; intensity: number } | null = null;
+	profiling = false;
+	readonly disabled = { volume: false, ao: false };
+	readonly timings: Record<string, number> = {};
+	private markTime = 0;
+
+	private probe = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+	private probePixel = new Uint8Array(4);
+
+	private mark(name: string | null): void {
+		if (!this.profiling) return;
+		this.renderer.readRenderTargetPixels(this.probe, 0, 0, 1, 1, this.probePixel);
+		const now = performance.now();
+		if (name) this.timings[name] = (this.timings[name] ?? 0) * 0.8 + (now - this.markTime) * 0.2;
+		this.markTime = now;
+	}
 	private mips: WebGLRenderTarget[] = [];
 	private quad: Mesh;
 	private quadScene = new Scene();
@@ -447,6 +489,7 @@ export class Pipeline {
 	private flare: ShaderMaterial;
 	readonly composite: ShaderMaterial;
 	private volume: Volume;
+	private noise: { texture: Data3DTexture; dispose: () => void };
 	private dirt: Texture;
 	private size = new Vector2();
 	private readonly levels = 7;
@@ -461,7 +504,8 @@ export class Pipeline {
 		this.aoRT = new WebGLRenderTarget(4, 4, { minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
 		this.aoBlurRT = new WebGLRenderTarget(4, 4, { minFilter: LinearFilter, magFilter: LinearFilter, depthBuffer: false });
 		for (let i = 0; i < this.levels; i++) this.mips.push(new WebGLRenderTarget(4, 4, rtOpts));
-		this.volume = new Volume(createCloudNoise(96));
+		this.noise = createCloudNoise(renderer, 128);
+		this.volume = new Volume(this.noise.texture);
 		this.dirt = lensDirt();
 		const material = (fragmentShader: string, uniforms: Record<string, { value: unknown }>, additive = false) =>
 			new ShaderMaterial({
@@ -474,7 +518,16 @@ export class Pipeline {
 			});
 		this.down = material(downsampleFrag, { tSrc: { value: null }, uTexel: { value: new Vector2() }, uKaris: { value: 0 } });
 		this.up = material(upsampleFrag, { tSrc: { value: null }, uTexel: { value: new Vector2() }, uRadius: { value: 1 }, uWeight: { value: 1 } }, true);
-		this.combine = material(combineFrag, { tScene: { value: null }, tVolume: { value: null }, tAo: { value: this.aoBlurRT.texture }, uUseVolume: { value: 0 }, uUseAo: { value: 0 } });
+		this.combine = material(combineFrag, {
+			tScene: { value: null },
+			tVolume: { value: null },
+			tAo: { value: this.aoBlurRT.texture },
+			tDepth: { value: null },
+			uProjInv: { value: new Matrix4() },
+			uVolTexel: { value: new Vector2() },
+			uUseVolume: { value: 0 },
+			uUseAo: { value: 0 }
+		});
 		const kernel = Array.from({ length: 16 }, (_, i) => {
 			const rand = mulberry32(i * 7 + 3);
 			const v = new Vector3(rand() * 2 - 1, rand() * 2 - 1, rand() * 0.9 + 0.1).normalize();
@@ -543,10 +596,13 @@ export class Pipeline {
 		this.flareRT.setSize(this.mips[1].width, this.mips[1].height);
 		this.streakA.setSize(this.mips[1].width, this.mips[1].height);
 		this.streakB.setSize(this.mips[1].width, this.mips[1].height);
-		this.aoRT.setSize(width, height);
-		this.aoBlurRT.setSize(width, height);
+		const hw = Math.max(1, Math.ceil(width / 2));
+		const hh = Math.max(1, Math.ceil(height / 2));
+		this.aoRT.setSize(hw, hh);
+		this.aoBlurRT.setSize(hw, hh);
 		this.aoMat.uniforms.uTexel.value.set(1 / width, 1 / height);
-		this.aoBlur.uniforms.uTexel.value.set(1 / width, 1 / height);
+		this.aoBlur.uniforms.uTexel.value.set(1 / hw, 1 / hh);
+		this.combine.uniforms.uVolTexel.value.set(1 / hw, 1 / hh);
 		this.flare.uniforms.uAspect.value = width / height;
 	}
 
@@ -583,33 +639,44 @@ export class Pipeline {
 
 	render(scene: Scene, camera: PerspectiveCamera, time: number, fade: number, canvasSize: Vector2): void {
 		const r = this.renderer;
+		this.mark(null);
 		r.setRenderTarget(this.sceneRT);
 		r.setClearColor(0x000000, 1);
 		r.clear();
 		r.render(scene, camera);
+		this.mark('scene');
 
 		let hdr: Texture = this.sceneRT.texture;
 		const depth = this.sceneRT.depthTexture!;
 		const cu = this.combine.uniforms;
-		cu.uUseVolume.value = this.volume.settings ? 1 : 0;
-		cu.uUseAo.value = this.aoSettings ? 1 : 0;
-		if (this.aoSettings) {
+		const useVolume = !this.disabled.volume;
+		const useAo = !!this.aoSettings && !this.disabled.ao;
+		cu.uUseVolume.value = useVolume ? 1 : 0;
+		cu.uUseAo.value = useAo ? 1 : 0;
+		if (useAo) {
 			const a = this.aoMat.uniforms;
 			a.tDepth.value = depth;
 			a.uProj.value.copy(camera.projectionMatrix);
 			a.uProjInv.value.copy(camera.projectionMatrixInverse);
-			a.uRadius.value = this.aoSettings.radius;
-			a.uIntensity.value = this.aoSettings.intensity;
+			a.uRadius.value = this.aoSettings!.radius;
+			a.uIntensity.value = this.aoSettings!.intensity;
 			this.pass(this.aoMat, this.aoRT);
 			this.aoBlur.uniforms.tDepth.value = depth;
 			this.aoBlur.uniforms.uProjInv.value.copy(camera.projectionMatrixInverse);
 			this.pass(this.aoBlur, this.aoBlurRT);
+			this.mark('ao');
 		}
-		if (this.volume.settings) cu.tVolume.value = this.volume.render(this.pass, depth, camera);
-		if (this.volume.settings || this.aoSettings) {
+		if (useVolume) {
+			cu.tVolume.value = this.volume.render(this.pass, depth, camera);
+			this.mark('volume');
+		}
+		if (useVolume || useAo) {
 			cu.tScene.value = this.sceneRT.texture;
+			cu.tDepth.value = depth;
+			cu.uProjInv.value.copy(camera.projectionMatrixInverse);
 			this.pass(this.combine, this.combineRT);
 			hdr = this.combineRT.texture;
+			this.mark('combine');
 		}
 
 		let src = hdr;
@@ -646,6 +713,7 @@ export class Pipeline {
 			this.pass(this.up, this.mips[i - 1]);
 		}
 		r.autoClear = true;
+		this.mark('bloom+lens');
 
 		const u = this.composite.uniforms;
 		u.tScene.value = hdr;
@@ -655,6 +723,7 @@ export class Pipeline {
 		u.uTime.value = time;
 		u.uFade.value = fade;
 		this.pass(this.composite, null);
+		this.mark('composite');
 	}
 
 	dispose(): void {
@@ -665,6 +734,7 @@ export class Pipeline {
 		for (const m of [this.aoMat, this.aoBlur, this.streak]) m.dispose();
 		this.mips.forEach((m) => m.dispose());
 		this.volume.dispose();
+		this.noise.dispose();
 		this.dirt.dispose();
 		for (const m of [this.down, this.up, this.combine, this.flare, this.composite]) m.dispose();
 		this.quad.geometry.dispose();

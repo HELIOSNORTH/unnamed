@@ -155,9 +155,13 @@ float heightFogOD(vec3 ro, vec3 rd, float t) {
 	return a * t * f;
 }
 
+float fbm3o(vec2 p) {
+	return (vnoise(p) * 0.5 + vnoise(ROT2 * p * 2.03) * 0.25 + vnoise(ROT2 * ROT2 * p * 4.1) * 0.125) / 0.875;
+}
+
 float slabNoise(vec2 xz) {
 	vec2 p = xz * uSlab.w + uSlabDrift * uTime;
-	float n = fbm2(p);
+	float n = fbm3o(p);
 	return smoothstep(0.32, 0.78, n);
 }
 
@@ -185,9 +189,8 @@ float slabOD(vec3 ro, vec3 rd, float t, out float shade) {
 	}
 	float len = t1 - t0;
 	if (len <= 0.0) return 0.0;
-	vec3 pa = ro + rd * mix(t0, t1, 0.25);
-	vec3 pb = ro + rd * mix(t0, t1, 0.75);
-	float n = 0.5 * (slabNoise(pa.xz) + slabNoise(pb.xz));
+	vec3 pa = ro + rd * mix(t0, t1, 0.5);
+	float n = slabNoise(pa.xz);
 	float hEntry = clamp(((ro + rd * t0).y - uSlab.x) / max(uSlab.y - uSlab.x, 1.0), 0.0, 1.0);
 	shade = n * (0.55 + 0.45 * hEntry);
 	return uSlab.z * n * len * 0.55;
@@ -213,28 +216,6 @@ float rangeFactor(int i, float d2) {
 	return q * q;
 }
 
-vec3 pointScatter(vec3 ro, vec3 rd, float t) {
-	vec3 acc = vec3(0.0);
-	for (int i = 0; i < MAX_LIGHTS; i++) {
-		if (i >= uLightCount) break;
-		vec3 L = uLightPos[i] - ro;
-		float b = dot(L, rd);
-		float l2 = dot(L, L);
-		float h = sqrt(max(l2 - b * b, 0.36));
-		float I = (atan((t - b) / h) + atan(b / h)) / h;
-		float tc = clamp(b, 0.0, t);
-		vec3 pc = ro + rd * tc;
-		float dens = fogDensityAt(pc.y) + slabDensityAt(pc);
-		float cosT = b * inversesqrt(l2);
-		float g = uPhase.x;
-		float hg = (1.0 - g * g) / (12.566 * pow(1.0 + g * g - 2.0 * g * cosT, 1.5));
-		float phase = uPhase.y + hg;
-		float spot = spotFactor(i, pc - uLightPos[i]);
-		acc += uLightCol[i] * (I * dens * phase * spot * exp(-heightFogOD(ro, rd, tc)));
-	}
-	return acc * uLightScatter;
-}
-
 vec3 applyAtmosphere(vec3 col, vec3 p) {
 	vec3 ro = cameraPosition;
 	vec3 v = p - ro;
@@ -247,7 +228,6 @@ vec3 applyAtmosphere(vec3 col, vec3 p) {
 	vec3 slabC = uSlabColor * (0.35 + 1.1 * shade) + uGlowColor * 0.25 * pow(max(dot(rd, uGlowDir), 0.0), 2.0);
 	vec3 inC = (od * fogInscatter(rd) + sod * slabC) / max(od + sod, 1e-6);
 	col = col * T + inC * (1.0 - T);
-	col += pointScatter(ro, rd, t);
 	return col;
 }
 
@@ -270,6 +250,8 @@ vec3 pointLighting(vec3 p, vec3 n, float wrap) {
 		if (i >= uLightCount) break;
 		vec3 L = uLightPos[i] - p;
 		float d2 = dot(L, L);
+		vec3 lc = uLightCol[i];
+		if (d2 * 0.0002 > lc.r + lc.g + lc.b) continue;
 		float ndl = (dot(n, L * inversesqrt(d2)) + wrap) / (1.0 + wrap);
 		acc += uLightCol[i] * (uLightSurf[i] * spotFactor(i, -L) * rangeFactor(i, d2) * max(ndl, 0.0) / (d2 + 1.0));
 	}
@@ -297,16 +279,17 @@ float shadowHard(vec3 p) {
 
 float shadowFactor(vec3 p, vec3 n) {
 	if (uShadowParams.x < 0.5) return 1.0;
+	if (dot(n, uSunDir) < -0.35) return 0.0;
 	vec3 s = shadowCoord(p + n * 0.12);
 	if (s.x < 0.0 || s.y < 0.0 || s.x > 1.0 || s.y > 1.0 || s.z > 1.0) return 1.0;
 	float z = s.z - uShadowParams.z;
-	float a = hash13(p * 53.17 + fract(uTime * 7.0) * 97.0) * 6.2831853;
+	float a = hash13(floor(p * 23.0)) * 6.2831853;
 	mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
 	float search = uShadowParams.w * 24.0;
 	float blockers = 0.0;
 	float sum = 0.0;
-	for (int i = 0; i < 16; i++) {
-		float d = texture(uShadowMap, s.xy + R * POISSON16[i] * search).r;
+	for (int i = 0; i < 8; i++) {
+		float d = texture(uShadowMap, s.xy + R * POISSON16[i * 2] * search).r;
 		if (d < z) {
 			sum += d;
 			blockers += 1.0;
@@ -316,8 +299,8 @@ float shadowFactor(vec3 p, vec3 n) {
 	float avg = sum / blockers;
 	float radius = clamp((z - avg) * uShadowParams.y, uShadowParams.w * 1.5, uShadowParams.w * 24.0);
 	float lit = 0.0;
-	for (int i = 0; i < 16; i++) lit += step(z, texture(uShadowMap, s.xy + R * POISSON16[i] * radius).r);
-	return lit / 16.0;
+	for (int i = 0; i < 8; i++) lit += step(z, texture(uShadowMap, s.xy + R * POISSON16[i * 2 + 1] * radius).r);
+	return lit / 8.0;
 }
 
 vec3 sunLight(vec3 n, float wrap) {

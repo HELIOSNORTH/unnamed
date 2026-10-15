@@ -2,7 +2,7 @@ import { BoxGeometry, CylinderGeometry, Group, Mesh, Scene, Vector3 } from 'thre
 import { createAtmosphereUniforms } from '../engine/atmosphere.ts';
 import { branchingPlant, catenary, latticeTower, polarTerrain, type Segment } from '../engine/geometry.ts';
 import { addLightSprites, addRibbons, addSky, addStars, addPoints, kelvin, rgb, type BuiltScene } from '../engine/kit.ts';
-import { steady, type SceneLight } from '../engine/lights.ts';
+import { flash, steady, type SceneLight } from '../engine/lights.ts';
 import { createSurfaceMaterial } from '../engine/materials.ts';
 import { fbm, mulberry32, smoothstep } from '../engine/noise.ts';
 
@@ -11,7 +11,7 @@ function height(x: number, z: number): number {
 	return berm + 0.4 * fbm(x / 30, z / 30, 3, 4) + 6 * fbm(x / 600, z / 600, 3, 9) * smoothstep(80, 400, -z);
 }
 
-function pylon(base: Vector3, h: number, rot: number): { segs: Segment[]; arms: Vector3[] } {
+function pylon(base: Vector3, h: number, rot: number): { segs: Segment[]; arms: Vector3[]; top: Vector3 } {
 	const t = latticeTower({ base, height: h, baseWidth: 5, topWidth: 1.2, sections: 12, legRadius: 0.13, braceRadius: 0.05, rotation: rot, taperPower: 1.4 });
 	const segs = [...t.segments];
 	const arms: Vector3[] = [];
@@ -35,7 +35,7 @@ function pylon(base: Vector3, h: number, rot: number): { segs: Segment[]; arms: 
 		}
 	}
 	segs.push({ a: base.clone().add(new Vector3(0, h, 0)), b: base.clone().add(new Vector3(0, h + 4, 0)), r: 0.07 });
-	return { segs, arms };
+	return { segs, arms, top: base.clone().add(new Vector3(0, h + 4.3, 0)) };
 }
 
 export function buildPylons(): BuiltScene {
@@ -143,6 +143,19 @@ export function buildPylons(): BuiltScene {
 		{ position: new Vector3(20, 5, -40), color: kelvin(3600), intensity: 900, pattern: steady, range: 80 }
 	];
 
+	const aviation = rgb(1, 0.05, 0.02);
+	[a, b, c, d].forEach((p, i) => {
+		lights.push({ position: p.top, color: aviation, intensity: 18, pattern: flash(2.4, 0.9, i * 0.53, 0.18, 0.4), sprite: { size: 16, brightness: 260 }, surface: 0.3 });
+	});
+	lights.push({
+		position: poleBase.clone().add(new Vector3(0, 32.6, 0)),
+		color: aviation,
+		intensity: 10,
+		pattern: flash(2.4, 0.9, 1.7, 0.18, 0.4),
+		sprite: { size: 14, brightness: 220 },
+		surface: 0.3
+	});
+
 	const rand = mulberry32(4);
 	const town: Parameters<typeof addPoints>[2] = [];
 	for (let i = 0; i < 220; i++) {
@@ -155,7 +168,7 @@ export function buildPylons(): BuiltScene {
 		town.push({ p: new Vector3(x, height(x, z) + 2 + rand() * 8, z), color: [col.r * k, col.g * k, col.b * k], size: 2, twinkle: 0.4 });
 	}
 	addPoints(scene, atmos, town, 0.6);
-	const updateSprites = addLightSprites(scene, atmos, lights);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.02, 0.04);
 
 	const camPos = new Vector3(-1.5, height(-1.5, 0) + 0.9, 0.5);
 	const target = new Vector3(3.5, 23, -22);

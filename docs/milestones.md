@@ -27,8 +27,17 @@
 - Textures: rebuilt snow (no aliasing streaks, stable glint sparkle), rebuilt forest canopy.
 - Scenes: Beacon ground fog, Hill Station dark blue evening, Pylons grassy embankment instead of a black bar.
 
-## M4 — Next candidates
+## M4 — Performance pass (2026-10-15) ✅
 
-- Measure frame times on Apple Silicon and a mid-range Windows laptop; tune adaptive scale thresholds from those numbers.
+Owner report: 3–4 FPS on a MacBook Air M1 except Pylons (20+). Benchmarked with feature ablations; the fog volume was 55–70 % of the frame.
+- Volume at half resolution with bilateral upsample, 28 steps, 2 noise fetches per step, GPU-generated 128³ noise.
+- Light glow through fog moved from every material to the half-res volume pass.
+- Ribbons shaded per vertex; cheaper Worley; derivative bumps; footprint-gated snow detail; sky drawn last; half-res SSAO; lighter PCSS (8+8, static rotation).
+- Result (SwiftShader ms/frame at 480×270): Beacon 1483 → 233, Hill Station 1717 → 533, Summit 1033 → 350, Pylons 217 → 167, Launch 1600 → 617.
+- Pylons: blinking aviation lights on every tower. Summit: blowing-snow particles removed (read as sparkles in the sky); snow glints only change with camera movement.
+
+## M5 — Next candidates
+
+- Owner measurement on the M1 Air per scene (D overlay); if Hill Station / Launch stay under 20 FPS, next levers are volume at ⅓ resolution for those two scenes and a lighter forest shader.
 - Listening pass on headphones and speakers; adjust per-voice levels.
 - Drifting low cloud sheets on Hill Station.

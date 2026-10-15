@@ -93,14 +93,14 @@ export function buildBeacon(): BuiltScene {
 		const z = bestZ + 20 + rand() * 50;
 		const hgt = 1.4 + rand() * rand() * 4.5;
 		plants.push(
-			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.2, z), height: hgt, spread: 1.7, depth: 6, seed: i * 13 + 1, radius: 0.11, children: 3, upBias: 0.4 })
+			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.2, z), height: hgt, spread: 1.7, depth: 5, seed: i * 13 + 1, radius: 0.11, children: 3, upBias: 0.4 })
 		);
 	}
 	for (let i = 0; i < 9; i++) {
 		const x = -38 + rand() * 20;
 		const z = -284 - rand() * 12;
 		plants.push(
-			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.3, z), height: 4 + rand() * 3, spread: 1.9, depth: 6, seed: 500 + i, radius: 0.12, children: 3, upBias: 0.35 })
+			...branchingPlant({ root: new Vector3(x, height(x, z) - 0.3, z), height: 4 + rand() * 3, spread: 1.9, depth: 5, seed: 500 + i, radius: 0.12, children: 3, upBias: 0.35 })
 		);
 	}
 	for (let i = 0; i < 26; i++) {
@@ -114,7 +114,7 @@ export function buildBeacon(): BuiltScene {
 
 	addRibbons(scene, atmos, tower.segments, { color: rgb(0.24, 0.23, 0.24), minWidthPx: 0.55, lightResponse: 0.06 });
 	addRibbons(scene, atmos, [...mast.segments, ...pole], { color: rgb(0.09, 0.09, 0.1), minWidthPx: 0.55, lightResponse: 0.06 });
-	addRibbons(scene, atmos, guys, { color: rgb(0.2, 0.2, 0.2), minWidthPx: 0.45, lightResponse: 0.3 });
+	addRibbons(scene, atmos, guys, { color: rgb(0.2, 0.2, 0.2), minWidthPx: 0.45, lightResponse: 0.04 });
 	addRibbons(scene, atmos, plants, { color: rgb(0.012, 0.011, 0.01), minWidthPx: 0.7, lightResponse: 0.05 });
 
 	const dishMat = createSurfaceMaterial(atmos, { albedo: rgb(0.32, 0.32, 0.33), wrap: 0.4 });
@@ -209,9 +209,9 @@ export function buildBeacon(): BuiltScene {
 			wind: [1.6, 0.1, 0.6],
 			ambient: rgb(0.03, 0.024, 0.03),
 			ground: rgb(0.008, 0.006, 0.006),
-			lights: 1.4,
+			lights: 1.0,
 			sun: 0,
-			steps: 72
+			steps: 28
 		},
 		shot: { position: camPos, target, fov: 14, refAspect: 1.55 },
 		grade: {

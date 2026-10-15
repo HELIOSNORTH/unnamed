@@ -204,6 +204,31 @@ export class Engine {
 		};
 	}
 
+	setProfiling(on: boolean): void {
+		this.pipeline.profiling = on;
+	}
+
+	debugToggle(flags: { volume?: boolean; ao?: boolean; shadows?: boolean }): void {
+		this.pipeline.disabled.volume = flags.volume === false;
+		this.pipeline.disabled.ao = flags.ao === false;
+		const b = this.built.get(this.current);
+		if (b?.shadow) b.atmos.uShadowParams.value.x = flags.shadows === false ? 0 : 1;
+	}
+
+	debugHide(kinds: string[]): void {
+		const b = this.built.get(this.current);
+		b?.scene.traverse((o) => {
+			const m = o as unknown as { material?: { userData?: { shadow?: string; kind?: string } }; isPoints?: boolean; visible: boolean; renderOrder: number };
+			if (!m.material) return;
+			const kind = m.isPoints ? 'points' : m.renderOrder === 1 ? 'sky' : (m.material.userData?.shadow ?? 'other');
+			m.visible = !kinds.includes(kind);
+		});
+	}
+
+	passTimings(): Record<string, number> {
+		return this.pipeline.timings;
+	}
+
 	stats(): EngineStats | null {
 		return this.lastStats;
 	}

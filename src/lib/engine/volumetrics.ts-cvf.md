@@ -1,11 +1,10 @@
-# volumetrics.ts — CVF (2026-10-14)
+# volumetrics.ts — CVF (2026-10-15)
 
-Raymarched heterogeneous fog ("the ray-traced fog"). Browsers expose no hardware ray tracing (WebGL2 and WebGPU alike), so this is per-pixel raymarching in a fragment shader.
+Raymarched heterogeneous fog + all light glow through fog. Browsers expose no hardware ray tracing, so this is per-pixel raymarching.
 
-- Runs at full render resolution after the scene pass. Reads the scene depth texture (MSAA target with `depthTexture`, resolved by three), reconstructs the view ray and the surface distance, marches `steps` samples up to `min(surface, range)`. Samples are quadratically spaced (dense near the camera) and jittered per pixel (interleaved gradient noise) and per frame (golden-ratio offset).
-- Density: `density · min(exp(−falloff·(y−base)), 6)` modulated by two fetches of the 64³ tileable cloud noise (`noise3d.ts`) drifting with `wind`. `coverage` is the noise threshold, `noiseStrength` blends uniform ↔ patchy.
-- Lighting per sample: ambient (mix of `ground` and `ambient`), the scene's directional light × HG(g=0.55) × `sun`, every scene light with its spot cone, range window and HG(g=0.6) × `lights`. No shadowing.
-- Output RGBA = (in-scattered light, transmittance). Combine pass: `scene · T + L`, before bloom so mist glows.
-- Temporal resolve: reprojects the end point (surface, or `range` for sky) with last frame's view-projection, clamps history to the 3×3 neighbourhood of the current frame, blends 88 % history. History resets on resize and scene change.
-- Coexists with the analytic fog in `atmosphere.ts`: analytic = km-scale homogeneous aerial perspective; volume = local patchy mist within `range`. Scenes without `volume` skip both passes.
-- Thin ribbons write depth; their uncovered sub-pixel fraction gets the line's fog, not the sky's. Accepted (barely visible).
+- Half render resolution (ceil(w/2) × ceil(h/2)); `post.ts` combine pass upsamples bilaterally (4 taps, weights fall off with view-depth difference) so thin towers keep clean edges.
+- March: `steps` (28 default in scenes) quadratically spaced samples up to `min(surface, range)`, jittered per pixel (IGN) and per frame (golden ratio), temporally accumulated (reprojected history, 3×3 clamp, 90 %). Per step: 1 warp fetch (BA channels) + 1 shape fetch (R main, G finer octave) of the 128³ noise, ambient + directional × `shadowHard` (1 shadow-map tap → shadowed shafts). No per-step light loop.
+- Light glow (moved here from every material on 2026-10-15): once per half-res pixel and light, the closed-form ∫1/(h²+(t−b)²) along the full ray (sky → `uSkyDist`), times density at the closest-approach point = analytic fog/slab density × `uLightScatter` × HG(`uPhase`) + volume density (70 % smooth height profile, 30 % noise — pure noise there projected fire-like wisps) × `lights` × HG(0.6). Lights with `range` use a Gaussian falloff of the closest-approach distance (a hard window drew a visible disc). Lights whose bound contribution < 2e-4 are skipped.
+- Scenes without `volume` still run this pass with `NO_VOLUME` (0 steps) for the glow.
+
+Benchmarks (`scripts/bench.mjs`, SwiftShader, ms per frame, 480×270): Beacon 1483 → 233, Hill Station 1717 → 533, Summit 1033 → 350, Pylons 217 → 167, Launch 1600 → 617.

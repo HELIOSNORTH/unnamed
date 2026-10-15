@@ -1,10 +1,10 @@
-import { BoxGeometry, BufferAttribute, BufferGeometry, CylinderGeometry, Group, Mesh, Object3D, Points, Scene, Vector2, Vector3 } from 'three';
+import { BoxGeometry, BufferGeometry, CylinderGeometry, Group, Mesh, Object3D, Scene, Vector3 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createAtmosphereUniforms } from '../engine/atmosphere.ts';
 import { polarTerrain } from '../engine/geometry.ts';
 import { addLightSprites, addSky, addStars, rgb, type BuiltScene } from '../engine/kit.ts';
 import { flash, type SceneLight } from '../engine/lights.ts';
-import { createDriftMaterial, createSurfaceMaterial } from '../engine/materials.ts';
+import { createSurfaceMaterial } from '../engine/materials.ts';
 import { fbm, mulberry32, ridged, smoothstep } from '../engine/noise.ts';
 
 const TOWER = new Vector3(0, 0, -72);
@@ -144,17 +144,6 @@ export function buildSummit(): BuiltScene {
 	dishGeo.dispose();
 	scene.add(tower);
 
-	const driftCount = 4000;
-	const seeds = new Float32Array(driftCount * 4);
-	for (let i = 0; i < seeds.length; i++) seeds[i] = rand();
-	const driftGeo = new BufferGeometry();
-	driftGeo.setAttribute('position', new BufferAttribute(new Float32Array(driftCount * 3), 3));
-	driftGeo.setAttribute('aSeed', new BufferAttribute(seeds, 4));
-	const drift = new Points(driftGeo, createDriftMaterial(atmos, { box: new Vector3(40, 5, 40), windDir: new Vector2(1, 0.35), speed: 7, brightness: 0.5 }));
-	drift.frustumCulled = false;
-	drift.renderOrder = 12;
-	scene.add(drift);
-
 	const lights: SceneLight[] = [
 		{
 			position: new Vector3(TOWER.x, PEAK + 142, TOWER.z),
@@ -191,7 +180,7 @@ export function buildSummit(): BuiltScene {
 			ground: rgb(0.004, 0.005, 0.008),
 			lights: 1,
 			sun: 1.0,
-			steps: 80
+			steps: 28
 		},
 		shot: { position: camPos, target, fov: 54, refAspect: 0.67, sway: 0.8 },
 		grade: {

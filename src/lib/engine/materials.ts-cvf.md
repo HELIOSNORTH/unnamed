@@ -12,6 +12,13 @@ One shader with feature defines:
 - `GRID` – facade panel lines from world coords on axis-aligned faces.
 - `BAKED_SHADOW` – reads `aShade` (terrain shadow bake). Without the define vShade = 1. Before this define existed, meshes without the attribute read 0 and rendered unlit.
 
+## Performance notes (2026-10-15)
+- Ribbons are shaded per vertex (`RIBBON_SHADE`): lighting, shadow, fog in the vertex shader, fragment only does coverage AA. Lines are 1–3 px wide, so it looks the same; Beacon's 40k bush segments made per-fragment shading the top cost. Point lighting on lines is clamped (long guy-wire segments interpolated a beacon's near-field light along their whole length).
+- Worley uses a 2×2 cell search (nearest-corner trick) instead of 3×3.
+- Canopy crown and leaf bumps use screen-space derivatives of one height evaluation (solved for the xz gradient) instead of finite differences.
+- Snow normal octaves are skipped once their frequency is below pixel size.
+- Sky is drawn after opaque geometry (`renderOrder` 1, depth at 0.9999999·w) so hidden sky pixels are rejected by early-z.
+
 ## Ribbons (towers, wires, branches)
 Each segment is a quad expanded in screen space. Width = max(true pixel radius, `uMinPx`); alpha is scaled by true/visible width ("coverage"), so a 2 cm wire 400 m away is a faint 1 px line instead of flickering. Near-plane clipped in view space. `aFlex` per end drives wind sway (branches). `lightResponse` scales point lights on lines; lattice lit fully by a beacon next to it looked like a glowing rod.
 
