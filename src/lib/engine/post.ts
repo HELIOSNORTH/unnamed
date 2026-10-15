@@ -602,7 +602,6 @@ export class Pipeline {
 		this.aoBlurRT.setSize(hw, hh);
 		this.aoMat.uniforms.uTexel.value.set(1 / width, 1 / height);
 		this.aoBlur.uniforms.uTexel.value.set(1 / hw, 1 / hh);
-		this.combine.uniforms.uVolTexel.value.set(1 / hw, 1 / hh);
 		this.flare.uniforms.uAspect.value = width / height;
 	}
 
@@ -674,6 +673,7 @@ export class Pipeline {
 			cu.tScene.value = this.sceneRT.texture;
 			cu.tDepth.value = depth;
 			cu.uProjInv.value.copy(camera.projectionMatrixInverse);
+			cu.uVolTexel.value.copy(this.volume.texel);
 			this.pass(this.combine, this.combineRT);
 			hdr = this.combineRT.texture;
 			this.mark('combine');

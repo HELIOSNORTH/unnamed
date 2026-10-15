@@ -125,9 +125,9 @@ export function buildHillStation(): BuiltScene {
 		const z = -Math.cos(ang) * r;
 		const c = shoreColors[rand() < 0.75 ? Math.floor(rand() * 3) : 3 + Math.floor(rand() * 2)];
 		const b = (14 + rand() * 30) * (rand() < 0.06 ? 5 : 1);
-		city.push({ p: new Vector3(x, 4 + rand() * 30, z), color: [c.r * b, c.g * b, c.b * b], size: 2.2 + rand() * 1.5, twinkle: 0.3 });
+		city.push({ p: new Vector3(x, 4 + rand() * 30, z), color: [c.r * b, c.g * b, c.b * b], size: 2.6 + rand() * 1.6, twinkle: 0.3 });
 	}
-	addPoints(scene, atmos, city, 0.9);
+	addPoints(scene, atmos, city, 0.9, [9000, 0.3]);
 
 	const updateSprites = addLightSprites(scene, atmos, lights, 0.6);
 	const camPos = new Vector3(0, landform(0, 0) + 34, 0);

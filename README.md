@@ -2,7 +2,7 @@
 
 Five real-time 3D night scenes of radio towers in the browser, each with its own light, fog, sky, colour grade and generated soundscape. Built from five reference photographs (desert mast with red beacons, tropical hill station in haze, alpine relay under a full moon, monopole and pylons under stars, a launch tower at blue hour).
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 ## Run
 
@@ -32,9 +32,10 @@ FPS counter is always shown bottom right. Rendering always runs at native resolu
 | --- | --- |
 | Three.js, but only `ShaderMaterial`s | Every surface runs the same analytic atmosphere code, so fog, aerial perspective and light glow match across sky, terrain and towers. Built-in materials would need patching to do that. |
 | Forward (per-fragment) fog instead of a depth-based post pass | Lattice towers are sub-pixel lines. A post pass would fog their MSAA-resolved edge pixels with the wrong depth and draw halos. See `src/lib/engine/atmosphere.ts-cvf.md`. |
-| Shadow maps (PCSS), SSAO, raymarched fog | Browsers expose no hardware ray tracing (WebGL2 or WebGPU). The closest equivalents: soft contact-hardening shadow maps, ambient occlusion traced through the depth buffer, and fog raymarched per pixel with shadowed light. See `shadows.ts-cvf.md`, `post.ts-cvf.md`. |
+| Soft shadow maps (prefiltered ESM), SSAO, raymarched fog | Browsers expose no hardware ray tracing (WebGL2 or WebGPU). The closest equivalents: soft shadow maps filtered once per scene (lights and casters are static), ambient occlusion traced through the depth buffer, and fog raymarched per pixel with shadowed light. See `shadows.ts-cvf.md`, `post.ts-cvf.md`. |
 | Raymarched volumetric fog | Browsers have no hardware ray tracing; per-pixel raymarching through 3D noise with temporal accumulation gives drifting mist that lights catch. See `src/lib/engine/volumetrics.ts-cvf.md`. |
 | Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR + depth → volume → 7-level bloom → lens ghosts → one composite pass (lens dirt, distortion, aberration, AgX, grade, film grain/softness/weave, fade). |
+| Leaf-card trees with distance LOD | How games draw foliage cheaply: alpha-tested camera-facing cards on a branch skeleton, fewer and larger cards with distance. See `trees.ts-cvf.md`. |
 | Procedural Web Audio, no audio files | Ships as one file, no licensing, and wind gusts drive camera sway and wind sound from one shared signal. |
 | SvelteKit 3, hash router, `bundleStrategy: 'inline'` | CSR-only single HTML file that works from `file://`, any static host and a claude.ai artifact. |
 | Tailwind 4 + normalize.css + sanitize.css | House style; UI is a thin glass layer over the canvas. |
@@ -42,7 +43,7 @@ FPS counter is always shown bottom right. Rendering always runs at native resolu
 ## Layout
 
 ```
-src/lib/engine/   renderer core: atmosphere GLSL, materials, geometry builders, post, camera rig, lights, engine loop
+src/lib/engine/   renderer core: atmosphere GLSL, materials, geometry builders, trees, shadows, fog volume, post, camera rig, lights, engine loop
 src/lib/scenes/   one file per scene + registry (index.ts)
 src/lib/audio/    sound engine, synth voices, per-scene soundscapes
 src/routes/       the single page (intro, navigation, HUD)
@@ -56,10 +57,11 @@ Context that the code cannot carry lives in CVF files next to the code (`<file>-
 - `src/lib/engine/materials.ts-cvf.md` – sky, surface (canopy, snow, facade), ribbon lines, points
 - `src/lib/engine/post.ts-cvf.md` – HDR pipeline, lens model, film stock, AgX caveats
 - `src/lib/engine/volumetrics.ts-cvf.md` – raymarched mist, temporal resolve
-- `src/lib/engine/shadows.ts-cvf.md` – directional shadow map, PCSS
+- `src/lib/engine/shadows.ts-cvf.md` – directional shadow map, ESM filtering, volume shadow copy
+- `src/lib/engine/trees.ts-cvf.md` – leaf-card trees, LOD
 - `src/lib/engine/noise3d.ts-cvf.md` – 3D cloud noise texture
 - `src/lib/engine/geometry.ts-cvf.md` – terrain meshes, shadow bake, ribbon layout
-- `src/lib/engine/engine.ts-cvf.md` – loop, transitions, adaptive resolution, health hooks
+- `src/lib/engine/engine.ts-cvf.md` – loop, transitions, health and benchmark hooks
 - `src/lib/scenes/index.ts-cvf.md` – photo-matching workflow, per-scene notes
 - `src/lib/audio/engine.ts-cvf.md` – audio graph, scheduling, loudness targets
 - `vite.config.ts-cvf.md` – SvelteKit 3 specifics

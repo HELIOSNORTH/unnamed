@@ -36,8 +36,20 @@ Owner report: 3–4 FPS on a MacBook Air M1 except Pylons (20+). Benchmarked wit
 - Result (SwiftShader ms/frame at 480×270): Beacon 1483 → 233, Hill Station 1717 → 533, Summit 1033 → 350, Pylons 217 → 167, Launch 1600 → 617.
 - Pylons: blinking aviation lights on every tower. Summit: blowing-snow particles removed (read as sparkles in the sky); snow glints only change with camera movement.
 
-## M5 — Next candidates
+## M5 — Look and performance pass 2 (2026-10-15) ✅
 
-- Owner measurement on the M1 Air per scene (D overlay); if Hill Station / Launch stay under 20 FPS, next levers are volume at ⅓ resolution for those two scenes and a lighter forest shader.
+Owner report (M1 Air): Beacon 19, Hill Station 16, Summit 10, Pylons 17, Launch 9 FPS. Summit and Launch are the only scenes with shadow maps, so the shadow path was the prime suspect.
+- Shadows: PCSS (32 taps/pixel) → prefiltered ESM (1 tap); fog volume reads a separate 512² copy (cache-friendly).
+- Fog volume resolution per scene; Summit and Launch at ⅓.
+- Distant canopy skips its noise once crowns are sub-pixel.
+- Launch: leaf-card trees with LOD replace the "green balls"; darker grade (same colours); floodlights, yard lights, aviation lights, strobe; streaks, ghosts, dirt.
+- Lens: Beacon brought to Hill Station's level; more on Summit and Pylons.
+- Hill Station: shore lights shrink with distance. Summit: stronger, denser ground sparkle.
+- SwiftShader ms/frame at 480×270 (noise ±10 %): Beacon 217, Hill Station 550, Summit 333, Pylons 167, Launch 667. Roughly unchanged, as expected: the changes target GPU texture bandwidth and cache behaviour, which SwiftShader does not model. Needs an owner re-measure on the M1.
+
+## M6 — Next candidates
+
+- Owner re-measure on the M1 Air. If Summit/Launch are still under 20 FPS: the next levers are SSAO at ¼ resolution and lighter mountain terrain meshes (sub-pixel triangles cause quad overshading).
+- Browser game: the scenes become levels (owner will specify). Runtime LOD for trees and terrain once the camera moves freely.
 - Listening pass on headphones and speakers; adjust per-voice levels.
 - Drifting low cloud sheets on Hill Station.

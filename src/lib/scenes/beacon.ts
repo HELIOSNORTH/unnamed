@@ -186,7 +186,7 @@ export function buildBeacon(): BuiltScene {
 	}
 	addPoints(scene, atmos, distant, 0.5);
 
-	const updateSprites = addLightSprites(scene, atmos, lights, 0.02, 0.035);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.35, 0.035);
 
 	const camPos = new Vector3(0, height(0, 0) + 1.6, 0);
 	const target = camPos.clone().add(new Vector3(Math.sin(0.018), Math.tan((10.4 * Math.PI) / 180), -1).multiplyScalar(300));
@@ -221,15 +221,15 @@ export function buildBeacon(): BuiltScene {
 			gain: rgb(1.0, 1.0, 1.0),
 			saturation: 1.05,
 			contrast: 1.04,
-			bloom: 0.05,
+			bloom: 0.06,
 			halation: 0.5,
 			grain: 0.03,
 			vignette: 0.45,
 			aberration: 0.006,
-			flare: 0.03,
-			streak: 0.05,
+			flare: 0.035,
+			streak: 0.055,
 			streakTint: rgb(1, 0.85, 0.85),
-			dirt: 0.8
+			dirt: 0.95
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

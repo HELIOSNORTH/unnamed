@@ -30,6 +30,7 @@ export interface VolumeSettings {
 	lights: number;
 	sun: number;
 	steps?: number;
+	resolution?: number;
 }
 
 const MAX_STEPS = 64;
@@ -122,7 +123,7 @@ const marchFrag = /* glsl */ `
 			float d = volDensity(p);
 			if (d < 1e-7) continue;
 			vec3 lin = ambient;
-			if (uVolLight.y > 0.0) lin += uSunColor * (sunPhase * uVolLight.y * shadowHard(p));
+			if (uVolLight.y > 0.0) lin += uSunColor * (sunPhase * uVolLight.y * shadowVolume(p));
 			float ext = exp(-d * dt);
 			L += T * lin * (1.0 - ext);
 			T *= ext;
@@ -250,9 +251,17 @@ export class Volume {
 		});
 	}
 
+	private fullW = 4;
+	private fullH = 4;
+	private divisor = 2;
+	readonly texel = new Vector2(1, 1);
+
 	setSize(fullW: number, fullH: number): void {
-		const w = Math.max(1, Math.ceil(fullW / 2));
-		const h = Math.max(1, Math.ceil(fullH / 2));
+		this.fullW = fullW;
+		this.fullH = fullH;
+		const w = Math.max(1, Math.ceil(fullW / this.divisor));
+		const h = Math.max(1, Math.ceil(fullH / this.divisor));
+		this.texel.set(1 / w, 1 / h);
 		this.raw.setSize(w, h);
 		this.history.forEach((r) => r.setSize(w, h));
 		this.resolve.uniforms.uTexel.value.set(1 / w, 1 / h);
@@ -262,6 +271,11 @@ export class Volume {
 	use(atmos: AtmosphereUniforms, volume: VolumeSettings | undefined): void {
 		this.settings = volume ?? null;
 		this.hasHistory = false;
+		const divisor = volume?.resolution ?? 2;
+		if (divisor !== this.divisor) {
+			this.divisor = divisor;
+			this.setSize(this.fullW, this.fullH);
+		}
 		const s = volume ?? NO_VOLUME;
 		Object.assign(this.march.uniforms, atmos);
 		const u = this.march.uniforms;

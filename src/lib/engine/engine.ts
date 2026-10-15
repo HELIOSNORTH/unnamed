@@ -31,7 +31,7 @@ export class Engine {
 	private camera = new PerspectiveCamera(30, 1, 0.5, 60000);
 	private rig = new HandheldRig();
 	private pipeline: Pipeline;
-	private shadows = new ShadowMap();
+	private shadows: ShadowMap;
 	private built = new Map<number, BuiltScene>();
 	private current = -1;
 	private pending = -1;
@@ -57,6 +57,7 @@ export class Engine {
 		this.renderer.autoClear = true;
 		this.renderer.info.autoReset = false;
 		this.pipeline = new Pipeline(this.renderer);
+		this.shadows = new ShadowMap(this.renderer.extensions.has('OES_texture_float_linear'));
 		this.maxScale = window.devicePixelRatio || 1;
 		this.scale = this.maxScale;
 		canvas.addEventListener('webglcontextlost', (e) => {

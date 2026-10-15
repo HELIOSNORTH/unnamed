@@ -73,9 +73,10 @@ export function addPoints(
 	scene: Scene,
 	atmos: AtmosphereUniforms,
 	pts: Parameters<typeof pointsGeometry>[0],
-	halo = 0.6
+	halo = 0.6,
+	perspective?: [number, number]
 ): Points {
-	const p = new Points(pointsGeometry(pts), createPointsMaterial(atmos, { halo }));
+	const p = new Points(pointsGeometry(pts), createPointsMaterial(atmos, { halo, perspective }));
 	p.frustumCulled = false;
 	p.renderOrder = 8;
 	scene.add(p);

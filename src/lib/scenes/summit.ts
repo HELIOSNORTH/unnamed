@@ -94,7 +94,7 @@ export function buildSummit(): BuiltScene {
 				albedo: rgb(0.06, 0.06, 0.065),
 				albedo2: rgb(0.04, 0.04, 0.045),
 				snow: { color: rgb(0.4, 0.43, 0.5), slope: 0.74, minHeight: 1500 },
-				sparkle: 7,
+				sparkle: 24,
 				wrap: 0.1,
 				bakedShadow: true
 			})
@@ -155,7 +155,7 @@ export function buildSummit(): BuiltScene {
 		},
 		{ position: new Vector3(TOWER.x + 3, PEAK + 93, TOWER.z), color: rgb(1, 0.05, 0.02), intensity: 50, pattern: flash(3.0, 1.4, 0, 0.3, 0.6), sprite: { size: 3.5, brightness: 260 }, surface: 0.1 }
 	];
-	const updateSprites = addLightSprites(scene, atmos, lights, 0.4);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.5, 0.03);
 
 	const target = camPos.clone().addScaledVector(heading(6.4, 12), 100);
 
@@ -180,7 +180,8 @@ export function buildSummit(): BuiltScene {
 			ground: rgb(0.004, 0.005, 0.008),
 			lights: 1,
 			sun: 1.0,
-			steps: 28
+			steps: 28,
+			resolution: 3
 		},
 		shot: { position: camPos, target, fov: 54, refAspect: 0.67, sway: 0.8 },
 		grade: {
@@ -190,13 +191,14 @@ export function buildSummit(): BuiltScene {
 			gain: rgb(0.98, 1.0, 1.02),
 			saturation: 1.05,
 			contrast: 1.08,
-			bloom: 0.05,
-			halation: 0.35,
+			bloom: 0.065,
+			halation: 0.45,
 			grain: 0.03,
 			vignette: 0.6,
-			aberration: 0.008,
-			streak: 0.03,
-			flare: 0.03,
+			aberration: 0.009,
+			streak: 0.045,
+			flare: 0.045,
+			dirt: 1.05,
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

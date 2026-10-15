@@ -256,27 +256,33 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				#ifdef CANOPY
 				vec2 cp = p.xz / uCanopy.x;
 				float foot = length(fwidth(cp));
-				float detail = 1.0 - smoothstep(0.2, 0.8, foot);
-				float leafDetail = 1.0 - smoothstep(0.03, 0.12, foot);
-				float crownId;
-				float body;
-				float h0 = crownHeight(cp, crownId, body);
-				vec2 dcx = dFdx(cp);
-				vec2 dcy = dFdy(cp);
-				float det = dcx.x * dcy.y - dcx.y * dcy.x;
-				vec2 grad = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(h0) - dcx.y * dFdy(h0), -dcy.x * dFdx(h0) + dcx.x * dFdy(h0)) / det : vec2(0.0);
-				grad = clamp(grad, vec2(-4.0), vec2(4.0));
-				float leafH = vnoise(p.xz * 2.6 + 3.0);
-				vec2 leafG = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(leafH) - dcx.y * dFdy(leafH), -dcy.x * dFdx(leafH) + dcx.x * dFdy(leafH)) / det / (uCanopy.x * 2.6) : vec2(0.0);
-				leafG = clamp(leafG, vec2(-1.0), vec2(1.0));
-				vec3 bumped = normalize(n - vec3(grad.x, 0.0, grad.y) * 0.5 * uCanopy.y - vec3(leafG.x, 0.0, leafG.y) * 0.8 * leafDetail);
-				n = normalize(mix(n, bumped, detail));
-				float hue = fract(crownId * 7.31);
-				vec3 tint = mix(uCanopyColor, uCanopyColor2, crownId);
-				tint *= mix(vec3(1.0), hue < 0.18 ? vec3(1.25, 1.15, 0.7) : (hue > 0.86 ? vec3(0.8, 0.85, 0.75) : vec3(1.0)), 0.8);
-				float leaf = mix(1.0, 0.7 + 0.6 * vnoise(p.xz * 5.3) * vnoise(p.xz * 13.1 + 2.0) * 1.6, leafDetail);
-				albedo = tint * leaf * (0.55 + 0.45 * smoothstep(0.0, 0.7, body));
-				ao = mix(1.0, mix(0.08, 1.0, smoothstep(0.0, 0.75, h0)), detail * 0.95);
+				float far = smoothstep(0.5, 0.9, foot);
+				vec3 farAlbedo = mix(uCanopyColor, uCanopyColor2, 0.5) * 0.87;
+				if (far >= 1.0) {
+					albedo = farAlbedo;
+				} else {
+					float detail = 1.0 - smoothstep(0.2, 0.8, foot);
+					float leafDetail = 1.0 - smoothstep(0.03, 0.12, foot);
+					float crownId;
+					float body;
+					float h0 = crownHeight(cp, crownId, body);
+					vec2 dcx = dFdx(cp);
+					vec2 dcy = dFdy(cp);
+					float det = dcx.x * dcy.y - dcx.y * dcy.x;
+					vec2 grad = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(h0) - dcx.y * dFdy(h0), -dcy.x * dFdx(h0) + dcx.x * dFdy(h0)) / det : vec2(0.0);
+					grad = clamp(grad, vec2(-4.0), vec2(4.0));
+					float leafH = vnoise(p.xz * 2.6 + 3.0);
+					vec2 leafG = abs(det) > 1e-9 ? vec2(dcy.y * dFdx(leafH) - dcx.y * dFdy(leafH), -dcy.x * dFdx(leafH) + dcx.x * dFdy(leafH)) / det / (uCanopy.x * 2.6) : vec2(0.0);
+					leafG = clamp(leafG, vec2(-1.0), vec2(1.0));
+					vec3 bumped = normalize(n - vec3(grad.x, 0.0, grad.y) * 0.5 * uCanopy.y - vec3(leafG.x, 0.0, leafG.y) * 0.8 * leafDetail);
+					n = normalize(mix(n, bumped, detail));
+					float hue = fract(crownId * 7.31);
+					vec3 tint = mix(uCanopyColor, uCanopyColor2, crownId);
+					tint *= mix(vec3(1.0), hue < 0.18 ? vec3(1.25, 1.15, 0.7) : (hue > 0.86 ? vec3(0.8, 0.85, 0.75) : vec3(1.0)), 0.8);
+					float leaf = mix(1.0, 0.7 + 0.6 * vnoise(p.xz * 5.3) * vnoise(p.xz * 13.1 + 2.0) * 1.6, leafDetail);
+					albedo = mix(tint * leaf * (0.55 + 0.45 * smoothstep(0.0, 0.7, body)), farAlbedo, far);
+					ao = mix(1.0, mix(0.08, 1.0, smoothstep(0.0, 0.75, h0)), detail * 0.95);
+				}
 				#endif
 
 				#ifdef SNOW
@@ -344,11 +350,11 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 						float scale = cs * (layer == 0 ? 1.0 : 2.3);
 						vec3 cell = floor(p / scale + float(layer) * 0.37);
 						vec3 rnd = vec3(hash13(cell), hash13(cell + 11.3), hash13(cell + 23.7));
-						vec3 fn = normalize(normalize(vNormal) * 1.25 + (rnd - 0.5) * 2.2);
+						vec3 fn = normalize(normalize(vNormal) * 1.25 + (rnd - 0.5) * 1.3);
 						vec3 local = fract(p / scale + float(layer) * 0.37) - (0.25 + 0.5 * rnd);
 						float shape = smoothstep(0.32, 0.0, length(local));
-						float chosen = step(0.7, hash13(cell + 41.9));
-						glint += pow(max(dot(fn, H), 0.0), 700.0) * shape * chosen;
+						float chosen = step(0.45, hash13(cell + 41.9));
+						glint += pow(max(dot(fn, H), 0.0), 380.0) * shape * chosen;
 					}
 					float fade = smoothstep(260.0, 3.0, camDist);
 					vec3 tintS = mix(vec3(0.85, 0.92, 1.0), vec3(1.0, 0.97, 0.9), hash13(floor(p / cs) + 3.3));
@@ -471,17 +477,19 @@ export function createRibbonMaterial(atmos: AtmosphereUniforms, s: RibbonSetting
 	return material;
 }
 
-export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: boolean; halo?: number; spikes?: number }): ShaderMaterial {
+export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: boolean; halo?: number; spikes?: number; perspective?: [number, number] }): ShaderMaterial {
 	return new ShaderMaterial({
 		defines: opts.stars ? { STARS: '' } : {},
 		uniforms: shared(atmos, {
 			uPxScale: viewport.pxScale,
 			uHalo: { value: opts.halo ?? 0.4 },
-			uSpikes: { value: opts.spikes ?? 0 }
+			uSpikes: { value: opts.spikes ?? 0 },
+			uPerspective: { value: new Vector2(...(opts.perspective ?? [0, 1])) }
 		}),
 		vertexShader: /* glsl */ `
 			${glslCommon}
 			uniform float uPxScale;
+			uniform vec2 uPerspective;
 			attribute vec3 aColor;
 			attribute float aSize;
 			attribute float aTwinkle;
@@ -506,9 +514,11 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 				vColor = col;
 				vec4 mv = viewMatrix * w;
 				gl_Position = projectionMatrix * mv;
-				gl_PointSize = aSize * uPxScale;
-				vCore = 1.4 / max(aSize * uPxScale, 1.0);
-				vSizePx = aSize * uPxScale;
+				float shrink = uPerspective.x > 0.0 ? clamp(uPerspective.x / -mv.z, uPerspective.y, 1.0) : 1.0;
+				float px = aSize * uPxScale * shrink;
+				gl_PointSize = px;
+				vCore = 1.4 / max(px, 1.0);
+				vSizePx = px;
 			}
 		`,
 		fragmentShader: /* glsl */ `

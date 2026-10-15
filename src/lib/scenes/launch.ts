@@ -1,9 +1,10 @@
-import { BoxGeometry, IcosahedronGeometry, Mesh, Scene, Vector2, Vector3 } from 'three';
+import { BoxGeometry, Mesh, Scene, Vector2, Vector3 } from 'three';
 import { createAtmosphereUniforms } from '../engine/atmosphere.ts';
 import { branchingPlant, latticeTower, polarTerrain, type Segment } from '../engine/geometry.ts';
-import { addLightSprites, addRibbons, addSky, rgb, type BuiltScene } from '../engine/kit.ts';
-import { breathe, steady, type SceneLight } from '../engine/lights.ts';
+import { addLightSprites, addRibbons, addSky, kelvin, rgb, type BuiltScene } from '../engine/kit.ts';
+import { breathe, flash, flicker, steady, type SceneLight } from '../engine/lights.ts';
 import { createSurfaceMaterial } from '../engine/materials.ts';
+import { addTrees, type TreeSpec } from '../engine/trees.ts';
 import { fbm, mulberry32, ridged, smoothstep } from '../engine/noise.ts';
 
 const PAD = new Vector3(0, 0, -470);
@@ -165,38 +166,43 @@ export function buildLaunch(): BuiltScene {
 	}
 	addRibbons(scene, atmos, trees, { color: rgb(0.05, 0.07, 0.07), minWidthPx: 0.55, lightResponse: 0.1 });
 
-	const leafy = createSurfaceMaterial(atmos, {
-		albedo: rgb(0.03, 0.07, 0.05),
-		canopy: { cell: 1.6, color: rgb(0.025, 0.065, 0.045), color2: rgb(0.05, 0.09, 0.05), bump: 1.2 },
-		wrap: 0.5
-	});
+	const eye = new Vector3(-12, height(-12, -215) + 19, -215);
+	const leafTrees: TreeSpec[] = [];
 	for (let i = 0; i < 46; i++) {
 		const z = -285 - rand() * 160;
 		const x = rand() < 0.65 ? 40 + rand() * 90 : -70 - rand() * 50;
 		const r = 2.5 + rand() * 4;
-		const g = new IcosahedronGeometry(r, 3);
-		const pos = g.getAttribute('position');
-		for (let k = 0; k < pos.count; k++) {
-			const v = new Vector3().fromBufferAttribute(pos, k);
-			const n = 1 + 0.22 * fbm(v.x * 0.6 + i, v.y * 0.6 + v.z * 0.4, 3, 7);
-			pos.setXYZ(k, v.x * n, v.y * n * 0.85, v.z * n);
-		}
-		g.computeVertexNormals();
-		const m = new Mesh(g, leafy);
-		m.position.set(x, height(x, z) + r * 0.7, z);
-		scene.add(m);
+		leafTrees.push({ position: new Vector3(x, height(x, z) - 0.2, z), height: r * 2.7, crown: r * 1.05, seed: 900 + i });
 	}
+	const branches = addTrees(scene, atmos, leafTrees, {
+		leaf: rgb(0.03, 0.075, 0.05),
+		leaf2: rgb(0.055, 0.1, 0.05),
+		cards: 220,
+		translucency: 0.25,
+		lod: { eye, near: 90, min: 0.35 }
+	});
+	addRibbons(scene, atmos, branches, { color: rgb(0.05, 0.06, 0.055), minWidthPx: 0.5, lightResponse: 0.1 });
 
 	const redLight = rgb(1, 0.06, 0.04);
+	const sodium = kelvin(2000);
+	const mercury = rgb(0.75, 0.95, 1);
 	const lights: SceneLight[] = [
 		{ position: PAD.clone().add(new Vector3(7.5, 18, 22)), color: redLight, intensity: 260, pattern: steady, surface: 0.05 },
 		{ position: PAD.clone().add(new Vector3(7.5, 30, 22)), color: redLight, intensity: 260, pattern: steady, surface: 0.05 },
 		{ position: lt1.clone().add(new Vector3(0, 181.5, 0)), color: redLight, intensity: 60, pattern: breathe(4, 0.6), sprite: { size: 4, brightness: 300 } },
-		{ position: lt2.clone().add(new Vector3(0, 174.5, 0)), color: redLight, intensity: 60, pattern: breathe(4, 0.6, 1.3), sprite: { size: 4, brightness: 300 } }
+		{ position: lt2.clone().add(new Vector3(0, 174.5, 0)), color: redLight, intensity: 60, pattern: breathe(4, 0.6, 1.3), sprite: { size: 4, brightness: 300 } },
+		{ position: lt3.clone().add(new Vector3(0, 146.5, 0)), color: redLight, intensity: 40, pattern: breathe(4, 0.6, 2.4), sprite: { size: 3.5, brightness: 260 } },
+		{ position: jibTip.clone().add(new Vector3(0, 0.6, 0)), color: redLight, intensity: 30, pattern: flash(2.2, 1.0), sprite: { size: 5, brightness: 420 } },
+		{ position: jibRoot.clone().add(new Vector3(0, 7.6, 0)), color: rgb(0.9, 0.95, 1), intensity: 80, pattern: flash(1.6, 0.06, 0.4, 0.02, 0.08), sprite: { size: 7, brightness: 900 } },
+		{ position: PAD.clone().add(new Vector3(-26, 6, 34)), color: mercury, intensity: 1900, pattern: steady, spot: { target: PAD.clone().add(new Vector3(-6, 40, 0)), angle: 0.42 }, sprite: { size: 8, brightness: 520 }, range: 120 },
+		{ position: PAD.clone().add(new Vector3(30, 6, 36)), color: mercury, intensity: 1700, pattern: steady, spot: { target: PAD.clone().add(new Vector3(7, 44, 0)), angle: 0.4 }, sprite: { size: 8, brightness: 480 }, range: 120 },
+		{ position: new Vector3(-30, height(-30, -312) + 11, -312), color: sodium, intensity: 700, pattern: flicker(0.04, 2), sprite: { size: 6, brightness: 380 }, range: 45 },
+		{ position: new Vector3(62, height(62, -318) + 10, -318), color: sodium, intensity: 650, pattern: steady, sprite: { size: 6, brightness: 360 }, range: 45 },
+		{ position: new Vector3(4, height(4, -360) + 9, -360), color: mercury, intensity: 500, pattern: steady, sprite: { size: 5, brightness: 300 }, range: 40 }
 	];
-	const updateSprites = addLightSprites(scene, atmos, lights, 0.5);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.5, 0.035);
 
-	const camPos = new Vector3(-12, height(-12, -215) + 19, -215);
+	const camPos = eye;
 	const target = new Vector3(PAD.x + 34, camPos.y + 2, PAD.z);
 
 	return {
@@ -221,16 +227,17 @@ export function buildLaunch(): BuiltScene {
 			ground: rgb(0.08, 0.14, 0.14),
 			lights: 1,
 			sun: 0.2,
-			steps: 28
+			steps: 28,
+			resolution: 3
 		},
 		grade: {
-			exposure: 0.95,
+			exposure: 0.56,
 			lift: rgb(0.0, 0.01, 0.018),
 			gamma: rgb(0.92, 1.0, 1.02),
 			gain: rgb(0.55, 1.0, 1.12),
 			saturation: 1.6,
 			contrast: 1.24,
-			bloom: 0.07,
+			bloom: 0.085,
 			halation: 0.75,
 			grain: 0.055,
 			grainSize: 2.1,
@@ -238,8 +245,10 @@ export function buildLaunch(): BuiltScene {
 			aberration: 0.012,
 			softness: 0.7,
 			weave: 0.8,
-			flare: 0,
-			dirt: 0.4,
+			flare: 0.03,
+			streak: 0.045,
+			streakTint: rgb(0.8, 0.95, 1),
+			dirt: 0.75,
 			distortion: 0.04
 		},
 		update: (_t, levels) => updateSprites(levels)
