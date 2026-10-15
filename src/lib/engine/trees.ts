@@ -19,41 +19,63 @@ export interface TreeStyle {
 }
 
 function leafAtlas(): CanvasTexture {
-	const size = 512;
+	const size = 1024;
 	const canvas = document.createElement('canvas');
 	canvas.width = canvas.height = size;
 	const ctx = canvas.getContext('2d')!;
-	ctx.clearRect(0, 0, size, size);
 	const rand = mulberry32(404);
 	const tile = size / 2;
+	const leaf = (x: number, y: number, len: number, angle: number, light: number, hue: number) => {
+		ctx.save();
+		ctx.translate(x, y);
+		ctx.rotate(angle);
+		const w = len * (0.36 + rand() * 0.16);
+		const g = Math.floor(120 + 120 * light);
+		ctx.fillStyle = `rgb(${Math.floor(g * (0.5 + hue * 0.25))},${g},${Math.floor(g * 0.38)})`;
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.quadraticCurveTo(len * 0.45, -w, len, 0);
+		ctx.quadraticCurveTo(len * 0.45, w, 0, 0);
+		ctx.fill();
+		ctx.strokeStyle = `rgba(255,255,220,${0.18 * light})`;
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(1, 0);
+		ctx.lineTo(len * 0.85, 0);
+		ctx.stroke();
+		ctx.restore();
+	};
 	for (let t = 0; t < 4; t++) {
-		const ox = (t % 2) * tile;
-		const oy = Math.floor(t / 2) * tile;
+		const cx = (t % 2) * tile + tile / 2;
+		const cy = Math.floor(t / 2) * tile + tile / 2;
 		ctx.save();
 		ctx.beginPath();
-		ctx.rect(ox, oy, tile, tile);
+		ctx.rect(cx - tile / 2, cy - tile / 2, tile, tile);
 		ctx.clip();
-		ctx.strokeStyle = 'rgba(70,60,45,1)';
-		ctx.lineWidth = 2;
-		for (let b = 0; b < 5; b++) {
-			ctx.beginPath();
-			ctx.moveTo(ox + tile / 2, oy + tile / 2);
-			ctx.lineTo(ox + tile / 2 + (rand() - 0.5) * tile * 0.8, oy + tile / 2 + (rand() - 0.5) * tile * 0.8);
-			ctx.stroke();
-		}
-		const leaves = 90 + Math.floor(rand() * 40);
-		for (let i = 0; i < leaves; i++) {
-			const r = Math.pow(rand(), 0.75) * tile * 0.46;
+		ctx.strokeStyle = 'rgb(60,50,38)';
+		const twigs: [number, number][] = [];
+		for (let b = 0; b < 7; b++) {
 			const a = rand() * Math.PI * 2;
-			const x = ox + tile / 2 + Math.cos(a) * r;
-			const y = oy + tile / 2 + Math.sin(a) * r;
-			const len = 9 + rand() * 13;
-			const g = 150 + Math.floor(rand() * 90);
-			const shade = 0.75 + rand() * 0.35;
-			ctx.fillStyle = `rgb(${Math.floor(g * 0.55 * shade)},${Math.floor(g * shade)},${Math.floor(g * 0.4 * shade)})`;
+			const r = tile * (0.25 + rand() * 0.2);
+			const ex = cx + Math.cos(a) * r;
+			const ey = cy + Math.sin(a) * r;
+			ctx.lineWidth = 2 + rand() * 2;
 			ctx.beginPath();
-			ctx.ellipse(x, y, len, len * (0.38 + rand() * 0.2), rand() * Math.PI, 0, Math.PI * 2);
-			ctx.fill();
+			ctx.moveTo(cx, cy);
+			ctx.quadraticCurveTo(cx + Math.cos(a + 0.4) * r * 0.5, cy + Math.sin(a + 0.4) * r * 0.5, ex, ey);
+			ctx.stroke();
+			twigs.push([ex, ey]);
+		}
+		for (let layer = 0; layer < 3; layer++) {
+			const count = 70 + layer * 20;
+			for (let i = 0; i < count; i++) {
+				const [tx, ty] = twigs[Math.floor(rand() * twigs.length)];
+				const k = rand();
+				const x = cx + (tx - cx) * k + (rand() - 0.5) * tile * 0.16;
+				const y = cy + (ty - cy) * k + (rand() - 0.5) * tile * 0.16;
+				if (Math.hypot(x - cx, y - cy) > tile * 0.47) continue;
+				leaf(x, y, 18 + rand() * 16, rand() * Math.PI * 2, 0.25 + layer * 0.3 + rand() * 0.15, rand());
+			}
 		}
 		ctx.restore();
 	}
@@ -121,9 +143,10 @@ function leafMaterial(atmos: AtmosphereUniforms, atlas: CanvasTexture, style: Tr
 				vec4 tex = texture(tLeaf, vUv);
 				if (tex.a < 0.08) discard;
 				vec3 V = normalize(cameraPosition - vWorld);
-				vec3 n = normalize(vNormal + (tex.rgb - vec3(0.35, 0.6, 0.25)) * 0.9);
-				vec3 albedo = mix(uLeaf, uLeaf2, vTint) * (tex.g * 1.6) * vec3(1.0 + (tex.r - 0.35) * 0.5, 1.0, 1.0);
-				float ao = mix(0.35, 1.0, vInner);
+				vec3 facing = normalize(mix(vNormal, V, 0.3));
+				vec3 n = normalize(facing + vec3(tex.r - 0.3, tex.g - 0.55, tex.b - 0.2) * 0.8);
+				vec3 albedo = mix(uLeaf, uLeaf2, vTint) * (tex.g * 1.7) * vec3(0.8 + tex.r * 0.6, 1.0, 1.0);
+				float ao = mix(0.22, 1.0, pow(vInner, 1.4)) * mix(0.75, 1.0, smoothstep(-0.4, 0.6, vNormal.y));
 				float sunVis = shadowFactor(vWorld, n);
 				vec3 light = ambientLight(n) * ao + sunLight(n, 0.3) * sunVis * ao + pointLighting(vWorld, n, 0.4) * ao;
 				float back = pow(max(dot(-V, uSunDir), 0.0), 3.0);
@@ -167,7 +190,7 @@ export function addTrees(scene: Scene, atmos: AtmosphereUniforms, trees: TreeSpe
 	for (const t of trees) {
 		const rand = mulberry32(t.seed);
 		branches.push(
-			...branchingPlant({ root: t.position.clone(), height: t.height * 0.85, spread: 0.9, depth: 4, seed: t.seed, radius: 0.08 * t.height * 0.12 + 0.08, children: 3, upBias: 1.0 })
+			...branchingPlant({ root: t.position.clone(), height: t.height * 0.85, spread: 0.9, depth: 4, seed: t.seed, radius: 0.022 * t.height + 0.14, children: 3, upBias: 1.0 })
 		);
 		const crownCenter = t.position.clone().add(new Vector3(0, t.height * 0.62, 0));
 		const full = style.cards ?? 160;
@@ -189,7 +212,7 @@ export function addTrees(scene: Scene, atmos: AtmosphereUniforms, trees: TreeSpe
 			const s = Math.sqrt(1 - u * u);
 			const r = t.crown * 0.55 * Math.pow(rand(), 0.5);
 			const c = clump.clone().add(new Vector3(s * Math.cos(a) * r, u * r * 0.7, s * Math.sin(a) * r));
-			const size = t.crown * (0.36 + rand() * 0.26) * grow;
+			const size = t.crown * (0.3 + rand() * 0.22) * grow;
 			const seed = rand();
 			for (const [cx, cy] of corners) {
 				centers.push(c.x, c.y, c.z);

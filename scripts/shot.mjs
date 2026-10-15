@@ -4,7 +4,7 @@ const [, , scenesArg = '0,1,2,3,4', w = '1280', h = '720', t = '12', out = 'shot
 mkdirSync(out, { recursive: true });
 const pageUrl = new URL('../build/index.html', import.meta.url).href;
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
-const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: +(process.env.DPR || 1) });
 const logs = [];
 page.on('console', (m) => logs.push(m.type() + ': ' + m.text()));
 page.on('pageerror', (e) => logs.push('pageerror: ' + e.message));

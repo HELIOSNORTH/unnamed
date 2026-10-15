@@ -142,6 +142,7 @@ export interface SurfaceSettings {
 	emissive?: Color;
 	snow?: { color: Color; slope: number; minHeight: number };
 	canopy?: { cell: number; color: Color; color2: Color; bump: number };
+	grass?: { color: Color; dry: Color; dirt: Color };
 	grid?: { size: Vector2; strength: number; window?: [number, number, number] };
 	sparkle?: number;
 	spec?: number;
@@ -159,6 +160,7 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 	if (s.snow) defines.SNOW = '';
 	if (s.canopy) defines.CANOPY = '';
 	if (s.grid) defines.GRID = '';
+	if (s.grass) defines.GRASS = '';
 	if (s.bakedShadow) defines.BAKED_SHADOW = '';
 	return new ShaderMaterial({
 		defines,
@@ -176,7 +178,10 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 			uGrid: { value: new Vector3(s.grid?.size.x ?? 1, s.grid?.size.y ?? 1, s.grid?.strength ?? 0) },
 			uWindow: { value: new Vector3(...(s.grid?.window ?? [0, 0, 0])) },
 			uSparkle: { value: s.sparkle ?? 0 },
-			uSpec: { value: s.spec ?? 0 }
+			uSpec: { value: s.spec ?? 0 },
+			uGrass: { value: s.grass?.color ?? new Color() },
+			uGrassDry: { value: s.grass?.dry ?? new Color() },
+			uDirt: { value: s.grass?.dirt ?? new Color() }
 		}),
 		vertexShader: /* glsl */ `
 			#ifdef BAKED_SHADOW
@@ -213,6 +218,9 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 			uniform vec3 uWindow;
 			uniform float uSparkle;
 			uniform float uSpec;
+			uniform vec3 uGrass;
+			uniform vec3 uGrassDry;
+			uniform vec3 uDirt;
 			varying vec3 vWorld;
 			varying vec3 vNormal;
 			varying float vShade;
@@ -252,6 +260,31 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				vec3 albedo = mix(uAlbedo, uAlbedo2, smoothstep(0.3, 0.7, var) * uVariation.x / 0.3);
 				#endif
 				float ao = 1.0;
+				float sheen = 0.0;
+
+				#ifdef GRASS
+				{
+					float foot = length(fwidth(p.xz));
+					float dry = smoothstep(0.42, 0.78, fbm2(p.xz * 0.03 + 7.0));
+					vec3 g = mix(uGrass, uGrassDry, dry * 0.85) * (0.78 + 0.44 * fbm2(p.xz * 0.011));
+					float wear = smoothstep(0.64, 0.82, fbm2(p.xz * 0.045 + 3.0));
+					float tuftDetail = 1.0 - smoothstep(0.08, 0.3, foot);
+					float tuft = 0.5;
+					float tuftId = 0.5;
+					if (tuftDetail > 0.0) {
+						vec3 w = worley(p.xz / 0.35);
+						tuft = max(1.0 - w.x * w.x * 1.6, 0.0);
+						tuftId = w.y;
+					}
+					g *= mix(vec3(1.0), mix(vec3(0.85, 1.0, 0.85), vec3(1.2, 1.08, 0.78), tuftId) * (0.6 + 0.65 * tuft), tuftDetail);
+					float bladeDetail = 1.0 - smoothstep(0.02, 0.07, foot);
+					g *= mix(1.0, 0.72 + 0.56 * vnoise(p.xz * 38.0), bladeDetail);
+					vec3 dirt = uDirt * (0.75 + 0.5 * vnoise(p.xz * 1.7));
+					albedo = mix(g, dirt, wear);
+					ao *= mix(1.0, 0.55 + 0.45 * tuft, tuftDetail * (1.0 - wear));
+					sheen = pow(1.0 - max(dot(n, V), 0.0), 4.0) * (1.0 - wear) * (1.0 - dry * 0.5);
+				}
+				#endif
 
 				#ifdef CANOPY
 				vec2 cp = p.xz / uCanopy.x;
@@ -332,7 +365,7 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 
 				float sunVis = vShade * shadowFactor(p, normalize(vNormal));
 				vec3 light = ambientLight(n) * ao + (sunLight(n, uWrap) * sunVis + pointLighting(p, n, uWrap)) * mix(1.0, ao, 0.6);
-				vec3 col = albedo * light + uEmissive;
+				vec3 col = albedo * (light + ambientLight(vec3(0.0, 1.0, 0.0)) * sheen * 1.4) + uEmissive;
 				#ifdef GRID
 				col += win * uWindow.z * 0.12 * uAmbientSky * (0.4 + 0.6 * pow(1.0 - max(dot(n, V), 0.0), 3.0));
 				#endif

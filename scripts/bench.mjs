@@ -40,7 +40,7 @@ for (const s of scenesArg.split(',')) {
 		row[name] = (await frameMs()).toFixed(0);
 	}
 	await page.evaluate(() => window.__quietSignals.toggle({ volume: false, ao: false, shadows: false }));
-	for (const kind of process.env.HIDE ? ['sky', 'surface', 'ribbon', 'points', 'custom'] : []) {
+	for (const kind of process.env.HIDE ? ['sky', 'surface', 'ribbon', 'points', 'custom', 'other'] : []) {
 		await page.evaluate((k) => window.__quietSignals.hide([k]), kind);
 		await frameMs();
 		row['bare-' + kind] = (await frameMs()).toFixed(0);

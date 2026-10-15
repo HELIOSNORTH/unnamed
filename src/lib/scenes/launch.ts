@@ -4,6 +4,7 @@ import { branchingPlant, latticeTower, polarTerrain, type Segment } from '../eng
 import { addLightSprites, addRibbons, addSky, kelvin, rgb, type BuiltScene } from '../engine/kit.ts';
 import { breathe, flash, flicker, steady, type SceneLight } from '../engine/lights.ts';
 import { createSurfaceMaterial } from '../engine/materials.ts';
+import { addGrassField } from '../engine/grass.ts';
 import { addTrees, type TreeSpec } from '../engine/trees.ts';
 import { fbm, mulberry32, ridged, smoothstep } from '../engine/noise.ts';
 
@@ -53,7 +54,7 @@ export function buildLaunch(): BuiltScene {
 		wrap: 0.3
 	});
 	scene.add(new Mesh(polarTerrain({ center: [0, -100], span: 1.4, rMin: 500, rMax: 40000, rings: 380, segments: 420, height }), forest));
-	const grass = createSurfaceMaterial(atmos, { albedo: rgb(0.025, 0.07, 0.05), albedo2: rgb(0.04, 0.085, 0.05), variation: 0.4, variationScale: 0.04, wrap: 0.3 });
+	const grass = createSurfaceMaterial(atmos, { albedo: rgb(0.03, 0.075, 0.045), grass: { color: rgb(0.03, 0.078, 0.045), dry: rgb(0.08, 0.085, 0.04), dirt: rgb(0.07, 0.062, 0.05) }, wrap: 0.3 });
 	scene.add(new Mesh(polarTerrain({ center: [0, -100], span: 1.8, rMin: 0.8, rMax: 520, rings: 160, segments: 220, height }), grass));
 
 	const facade = (albedo: [number, number, number], grid: [number, number], strength: number) =>
@@ -177,7 +178,7 @@ export function buildLaunch(): BuiltScene {
 	const branches = addTrees(scene, atmos, leafTrees, {
 		leaf: rgb(0.03, 0.075, 0.05),
 		leaf2: rgb(0.055, 0.1, 0.05),
-		cards: 220,
+		cards: 380,
 		translucency: 0.25,
 		lod: { eye, near: 90, min: 0.35 }
 	});
@@ -203,6 +204,21 @@ export function buildLaunch(): BuiltScene {
 	const updateSprites = addLightSprites(scene, atmos, lights, 0.5, 0.035);
 
 	const camPos = eye;
+	addGrassField(scene, atmos, {
+		eye,
+		yaw: Math.atan2(PAD.x + 34 - eye.x, eye.z - PAD.z),
+		halfAngle: 0.75,
+		near: 60,
+		far: 260,
+		density: 2,
+		width: 0.7,
+		height: 0.42,
+		maxGrow: 2.5,
+		ground: height,
+		base: rgb(0.022, 0.055, 0.032),
+		tip: rgb(0.055, 0.115, 0.055),
+		dry: rgb(0.11, 0.11, 0.05)
+	});
 	const target = new Vector3(PAD.x + 34, camPos.y + 2, PAD.z);
 
 	return {
@@ -231,7 +247,7 @@ export function buildLaunch(): BuiltScene {
 			resolution: 3
 		},
 		grade: {
-			exposure: 0.34,
+			exposure: 0.27,
 			lift: rgb(0.0, 0.01, 0.018),
 			gamma: rgb(0.92, 1.0, 1.02),
 			gain: rgb(0.55, 1.0, 1.12),

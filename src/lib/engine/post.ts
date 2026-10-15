@@ -157,7 +157,7 @@ const aoFrag = /* glsl */ `
 		float d = texture2D(tDepth, vUv).r;
 		if (d >= 0.9999999) { gl_FragColor = vec4(1.0); return; }
 		vec3 P = viewPos(vUv);
-		float far = smoothstep(1000.0, 2000.0, -P.z);
+		float far = smoothstep(350.0, 700.0, -P.z);
 		if (far >= 1.0) { gl_FragColor = vec4(1.0); return; }
 		vec3 r = viewPos(vUv + vec2(uTexel.x, 0.0)) - P;
 		vec3 l = P - viewPos(vUv - vec2(uTexel.x, 0.0));

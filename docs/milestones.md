@@ -59,13 +59,21 @@ Owner report (M1 Air): Beacon 20, Hill Station 12, Summit 15, Pylons 17, Launch 
 
 Owner report (M1 Air): Beacon 22 FPS at 1080p, Hill Station 22 at 720p, Summit 25 at 720p and later 540p, Pylons 22 at 1080p, Launch 25 at 540p. Dark horizontal lines in the distance at 1080p and below.
 - Ladder steps up above 45 FPS, starts over at native on every visit, median-based measurement.
-- Dark distant lines were SSAO depth-precision self-occlusion → AO fades out by 2 km.
+- Dark distant lines were SSAO depth-precision self-occlusion → AO fades out by 2 km (tightened to 700 m in M8).
 - No memory or GPU-object growth over time (3-minute run); drops over time are likely thermal.
 
-## M8 — Next candidates
+## M8 — Ground and foliage (2026-10-15) ✅
 
-- Owner re-measure after the AO fix (AO no longer runs on the distant half of Hill Station and Launch, which should also help FPS).
-- If Hill Station settles low: lighter canopy grid (it is the densest mesh, 630k triangles).
-- Browser game: the scenes become levels (owner will specify). Runtime LOD for trees and terrain once the camera moves freely.
+Owner: FPS much better after M7. Asked for more fog on Beacon, a darker Launch, a fix for remaining dark lines on Launch at 1080p, and much better ground, grass and green trees.
+- AO fade moved to 350–700 m (bands were on Launch's foothills).
+- Launch: meadow ground shader, ~16k per-vertex-lit grass tufts, richer leaf atlas and shading, thicker trunks, exposure 0.27.
+- Beacon: denser, higher ground fog; stronger light scatter.
+- SwiftShader 480×270: Launch 633 → ~830 ms (mostly the meadow shader; grass tufts are within noise after per-vertex lighting).
+
+## M9 — Next candidates
+
+- Owner check of Launch FPS tier after the ground work.
+- Same ground/foliage treatment for Hill Station (canopy) and Pylons (embankment) if wanted.
+- Browser game: the scenes become levels (owner will specify). Runtime LOD for trees, grass and terrain once the camera moves freely.
 - Listening pass on headphones and speakers; adjust per-voice levels.
 - Drifting low cloud sheets on Hill Station.

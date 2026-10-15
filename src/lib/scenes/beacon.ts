@@ -23,11 +23,11 @@ export function buildBeacon(): BuiltScene {
 		glowColor: rgb(0.018, 0.008, 0.006),
 		glowDir: new Vector3(0.35, 0.0, -1),
 		glowExp: 6,
-		fogDensity: 0.00024,
+		fogDensity: 0.00034,
 		fogFalloff: 0.003,
 		ambientSky: rgb(0.02, 0.019, 0.026),
 		ambientGround: rgb(0.006, 0.004, 0.004),
-		lightScatter: 0.32,
+		lightScatter: 0.4,
 		phaseG: 0.92,
 		isotropic: 0.002
 	});
@@ -198,9 +198,9 @@ export function buildBeacon(): BuiltScene {
 		windiness: 0.55,
 		ao: { radius: 2.5, intensity: 1.2 },
 		volume: {
-			range: 900,
-			density: 0.0016,
-			base: 18,
+			range: 1100,
+			density: 0.003,
+			base: 30,
 			falloff: 0.016,
 			noiseScale: 0.006,
 			noiseStrength: 0.75,
@@ -209,7 +209,7 @@ export function buildBeacon(): BuiltScene {
 			wind: [1.6, 0.1, 0.6],
 			ambient: rgb(0.03, 0.024, 0.03),
 			ground: rgb(0.008, 0.006, 0.006),
-			lights: 1.0,
+			lights: 1.25,
 			sun: 0,
 			steps: 28
 		},
