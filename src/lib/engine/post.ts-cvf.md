@@ -1,12 +1,14 @@
-# post.ts — CVF (2026-10-14)
+# post.ts — CVF (2026-10-15)
 
-Order: scene → half-float 4× MSAA target (+ depth texture) → [SSAO + depth-aware blur] → [volume march + temporal resolve] → combine (`scene·AO·T + L`) → 7 downsamples (13-tap, Karis-weighted first level) → lens ghosts from the ⅛-res mip → tent upsample (additive) → composite.
+Order: scene → half-float 4× MSAA target (+ depth texture) → [SSAO + depth-aware blur] → [volume march + temporal resolve] → combine (`scene·AO·T + L`) → [depth of field] → 7 downsamples (13-tap, Karis-weighted first level) → lens ghosts from the ⅛-res mip → tent upsample (additive) → composite.
 
 Composite: gate weave (per 24 fps frame) → barrel distortion (`distortion`, samples inward so no black corners) → radial chromatic aberration → optional film softness (4-tap blur mix) → bloom lerp (÷ level count) with lens dirt and halation tint → lens ghosts × (0.35 + dirt) → vignette → exposure → AgX → saturation → contrast (power around 0.3) → lift/gamma/gain → grain (`grainSize` px clumps, 24 fps) → flicker → fade → sRGB → dither.
 
 Profiling: `pipeline.profiling` (D overlay) times passes with a 1-px readback sync; approximate on real GPUs, unreliable in SwiftShader — use `scripts/bench.mjs` ablations there.
 
-SSAO (half resolution, 3×3 depth-aware blur): 16-sample view-space hemisphere ray test against the depth buffer, normals rebuilt from depth (smaller neighbour difference wins), radius grows slightly with distance, 5×5 depth-weighted blur. Applied before fog/volume so mist is not darkened. Per scene `ao: { radius, intensity }`.
+SSAO (half resolution, 3×3 depth-aware blur): 16-sample view-space hemisphere ray test against the depth buffer, normals rebuilt from depth (smaller neighbour difference wins), radius grows slightly with distance, 3×3 depth-weighted blur. Applied before fog/volume so mist is not darkened. Per scene `ao: { radius, intensity }`.
+
+Depth of field (`dof: { focus, strength }`, owner request: distant objects and lights slightly soft, like a video camera): only beyond focus, CoC = strength·(1 − focus/z) px at 1080 rows (scaled with render height). Full-resolution 16-tap golden-angle gather; samples behind the centre use the centre's CoC, samples in front need their own CoC to reach (in-focus foreground never bleeds into the blurred background). The composite mixes the blur in by full-res CoC. The sky gets CoC 0 so stars stay sharp for scintillation, but a distant ridge still blends softly into the sky. Half resolution was tried first: small CoCs turned distant lights into square blocks.
 
 Streaks: thresholded ¼-res mip blurred horizontally twice (1.5 and 9 texel steps) → anamorphic-style horizontal flare on bright lights (`streak`, `streakTint`). Negative `softness` = sharpen.
 

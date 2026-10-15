@@ -171,7 +171,8 @@ export function buildHillStation(): BuiltScene {
 			flare: 0.03,
 			streak: 0.04,
 			streakTint: rgb(1, 0.9, 0.75),
-			softness: 0
+			softness: 0,
+			dof: { focus: 960, strength: 3 }
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

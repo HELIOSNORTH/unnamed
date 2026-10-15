@@ -229,7 +229,8 @@ export function buildBeacon(): BuiltScene {
 			flare: 0.035,
 			streak: 0.055,
 			streakTint: rgb(1, 0.85, 0.85),
-			dirt: 0.95
+			dirt: 0.95,
+			dof: { focus: 435, strength: 2.5 }
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

@@ -231,7 +231,7 @@ export function buildLaunch(): BuiltScene {
 			resolution: 3
 		},
 		grade: {
-			exposure: 0.56,
+			exposure: 0.34,
 			lift: rgb(0.0, 0.01, 0.018),
 			gamma: rgb(0.92, 1.0, 1.02),
 			gain: rgb(0.55, 1.0, 1.12),
@@ -249,7 +249,8 @@ export function buildLaunch(): BuiltScene {
 			streak: 0.045,
 			streakTint: rgb(0.8, 0.95, 1),
 			dirt: 0.75,
-			distortion: 0.04
+			distortion: 0.04,
+			dof: { focus: 255, strength: 3 }
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

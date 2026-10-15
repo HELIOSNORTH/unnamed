@@ -343,17 +343,25 @@ function buildSurfaceMaterial(atmos: AtmosphereUniforms, s: SurfaceSettings): Sh
 				}
 				#ifdef SNOW
 				if (uSparkle > 0.0 && snowAmt > 0.01) {
-					float cs = max(0.022, exp2(ceil(log2(footS * 1.7))));
+					float cs = max(0.022, exp2(ceil(log2(footS * 2.4))));
 					vec3 H = normalize(uSunDir + V);
+					vec3 nn = normalize(vNormal);
+					vec3 T = normalize(cross(abs(nn.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0), nn));
+					vec3 B = cross(nn, T);
+					vec3 dpx = dFdx(p);
+					vec3 dpy = dFdy(p);
+					mat2 J = mat2(dot(dpx, T), dot(dpx, B), dot(dpy, T), dot(dpy, B));
+					mat2 toPx = abs(determinant(J)) > 1e-12 ? inverse(J) : mat2(0.0);
 					float glint = 0.0;
 					for (int layer = 0; layer < 2; layer++) {
 						float scale = cs * (layer == 0 ? 1.0 : 2.3);
 						vec3 cell = floor(p / scale + float(layer) * 0.37);
 						vec3 rnd = vec3(hash13(cell), hash13(cell + 11.3), hash13(cell + 23.7));
-						vec3 fn = normalize(normalize(vNormal) * 1.25 + (rnd - 0.5) * 1.3);
-						vec3 local = fract(p / scale + float(layer) * 0.37) - (0.25 + 0.5 * rnd);
-						float shape = smoothstep(0.32, 0.0, length(local));
-						float chosen = step(0.45, hash13(cell + 41.9));
+						vec3 fn = normalize(nn * 1.25 + (rnd - 0.5) * 1.3);
+						vec3 local = (fract(p / scale + float(layer) * 0.37) - (0.3 + 0.4 * rnd)) * scale;
+						vec2 px = toPx * vec2(dot(local, T), dot(local, B));
+						float shape = smoothstep(1.6, 0.3, length(px));
+						float chosen = step(0.3, hash13(cell + 41.9));
 						glint += pow(max(dot(fn, H), 0.0), 380.0) * shape * chosen;
 					}
 					float fade = smoothstep(260.0, 3.0, camDist);
@@ -504,8 +512,12 @@ export function createPointsMaterial(atmos: AtmosphereUniforms, opts: { stars?: 
 				vec3 rd = normalize(w.xyz - cameraPosition);
 				float air = 1.0 / max(rd.y + 0.04, 0.04);
 				float ext = exp(-0.12 * air);
-				float tw = 1.0 + aTwinkle * (0.5 + 0.5 * min(air, 6.0) / 6.0) * (sin(uTime * (5.0 + ph * 9.0) + ph * 40.0) * 0.6 + sin(uTime * (11.0 + ph * 5.0)) * 0.4);
-				col *= ext * max(tw, 0.0) * smoothstep(-0.02, 0.06, rd.y);
+				float low = 0.5 + 0.5 * min(air, 6.0) / 6.0;
+				float tt = uTime * (6.0 + ph * 4.0);
+				float scint = (vnoise(vec2(tt, ph * 53.0)) - 0.5) * 1.6 + (vnoise(vec2(tt * 1.9 + 4.0, ph * 31.0)) - 0.5) * 0.8;
+				float tw = 1.0 + aTwinkle * low * scint;
+				vec3 hueFlash = vec3(vnoise(vec2(tt * 1.3, ph * 7.0)), vnoise(vec2(tt * 1.3 + 9.0, ph * 7.0)), vnoise(vec2(tt * 1.3 + 17.0, ph * 7.0))) - 0.5;
+				col *= ext * max(tw, 0.0) * (1.0 + hueFlash * aTwinkle * low * low * 0.6) * smoothstep(-0.02, 0.06, rd.y);
 				col *= exp(-heightFogOD(cameraPosition, rd, uSkyDist) * 1.2);
 				#else
 				float tw = 1.0 + aTwinkle * (sin(uTime * (3.0 + ph * 7.0) + ph * 30.0) * 0.5 + sin(uTime * (7.3 + ph * 3.0)) * 0.5);

@@ -16,6 +16,7 @@
 	let debug = $state(false);
 	let stats = $state<EngineStats | null>(null);
 	let fps = $state(0);
+	let renderHeight = $state<number | null>(null);
 	let profilingShown = false;
 	let passes = $state<Record<string, number>>({});
 	let audioLevel = $state<{ rms: number; peak: number } | null>(null);
@@ -125,6 +126,7 @@
 		const windTick = setInterval(() => {
 			sound?.setWind(e.wind);
 			fps = e.stats()?.fps ?? 0;
+			renderHeight = e.stats()?.renderHeight ?? null;
 			if (debug !== profilingShown) {
 				profilingShown = debug;
 				e.setProfiling(debug);
@@ -260,7 +262,7 @@
 		class="pointer-events-none absolute right-[max(16px,env(safe-area-inset-right))] bottom-[max(16px,env(safe-area-inset-bottom))] font-mono text-[11px] font-medium tracking-[0.04em] text-[var(--ink-soft)] tabular-nums"
 		aria-hidden="true"
 	>
-		{fps.toFixed(0)} FPS
+		{fps.toFixed(0)} FPS{renderHeight ? ` · ${renderHeight}p` : ''}
 	</div>
 
 	{#if debug && stats}

@@ -22,7 +22,7 @@ node scripts/compare.mjs <photos> 0,1,2,3,4 21 shots 560 && python3 scripts/comp
 
 ## Controls
 
-FPS counter is always shown bottom right. Rendering always runs at native resolution with every effect at maximum.
+FPS counter is always shown bottom right. Rendering starts at native resolution with every effect on; a scene that runs under 20 FPS steps down to 1080p, 720p, 540p, then 360p, and the counter shows the active tier.
 
 ← / → or swipe: previous / next scene · 1–5: jump · M: mute · F: full screen · D: debug HUD (fps, frame time, render scale, draw calls, GPU memory objects, JS heap, scene build time, audio RMS/peak).
 
@@ -34,7 +34,7 @@ FPS counter is always shown bottom right. Rendering always runs at native resolu
 | Forward (per-fragment) fog instead of a depth-based post pass | Lattice towers are sub-pixel lines. A post pass would fog their MSAA-resolved edge pixels with the wrong depth and draw halos. See `src/lib/engine/atmosphere.ts-cvf.md`. |
 | Soft shadow maps (prefiltered ESM), SSAO, raymarched fog | Browsers expose no hardware ray tracing (WebGL2 or WebGPU). The closest equivalents: soft shadow maps filtered once per scene (lights and casters are static), ambient occlusion traced through the depth buffer, and fog raymarched per pixel with shadowed light. See `shadows.ts-cvf.md`, `post.ts-cvf.md`. |
 | Raymarched volumetric fog | Browsers have no hardware ray tracing; per-pixel raymarching through 3D noise with temporal accumulation gives drifting mist that lights catch. See `src/lib/engine/volumetrics.ts-cvf.md`. |
-| Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR + depth → volume → 7-level bloom → lens ghosts → one composite pass (lens dirt, distortion, aberration, AgX, grade, film grain/softness/weave, fade). |
+| Own post pipeline (no `postprocessing` lib) | Small, fully controlled: MSAA HDR + depth → SSAO → volume → depth of field → 7-level bloom → lens ghosts/streaks → one composite pass (lens dirt, distortion, aberration, AgX, grade, film grain/softness/weave, fade). |
 | Leaf-card trees with distance LOD | How games draw foliage cheaply: alpha-tested camera-facing cards on a branch skeleton, fewer and larger cards with distance. See `trees.ts-cvf.md`. |
 | Procedural Web Audio, no audio files | Ships as one file, no licensing, and wind gusts drive camera sway and wind sound from one shared signal. |
 | SvelteKit 3, hash router, `bundleStrategy: 'inline'` | CSR-only single HTML file that works from `file://`, any static host and a claude.ai artifact. |
@@ -68,11 +68,11 @@ Context that the code cannot carry lives in CVF files next to the code (`<file>-
 
 ## Resource budget
 
-Measured in headless Chromium (2026-10-14): scene builds 0.2–2.3 s (done while the screen is black between scenes), 130k–630k triangles, 26–74 draw calls, 1 HDR MSAA target + 7 half-float bloom mips. Built scenes are cached for the session (memory grows with each first visit, then stays flat). Nothing allocates per frame except small uniform updates. Rendering pauses and audio suspends when the tab is hidden. No adaptive resolution: frame rate is allowed to drop (owner's choice).
+Measured in headless Chromium (2026-10-14): scene builds 0.2–2.3 s (done while the screen is black between scenes), 130k–630k triangles, 26–74 draw calls, 1 HDR MSAA target + 7 half-float bloom mips. Built scenes are cached for the session (memory grows with each first visit, then stays flat). Nothing allocates per frame except small uniform updates. Rendering pauses and audio suspends when the tab is hidden. Resolution falls back per scene below 20 FPS (owner's rule, see `engine.ts-cvf.md`).
 
 ## Known limits
 
-- Real GPU frame times are unmeasured here (only SwiftShader is available in the build container). Check the D HUD on target hardware.
+- Real GPU frame times are not measurable here (only SwiftShader in the build container, and headless rAF does not track GPU cost). Owner M1 Air readings are logged per milestone in `docs/milestones.md`.
 - Lights do not cast shadows through fog (no occlusion of in-scattering).
 - The reference photos are not in the repo (source: user, rights unclear); `compare.mjs` takes their directory as an argument.
 - Mixing of the soundscapes was balanced by measured RMS, not by ear.

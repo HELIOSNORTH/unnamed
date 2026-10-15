@@ -180,8 +180,7 @@ export function buildSummit(): BuiltScene {
 			ground: rgb(0.004, 0.005, 0.008),
 			lights: 1,
 			sun: 1.0,
-			steps: 28,
-			resolution: 3
+			steps: 28
 		},
 		shot: { position: camPos, target, fov: 54, refAspect: 0.67, sway: 0.8 },
 		grade: {
@@ -199,6 +198,7 @@ export function buildSummit(): BuiltScene {
 			streak: 0.045,
 			flare: 0.045,
 			dirt: 1.05,
+			dof: { focus: 170, strength: 2.5 },
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};

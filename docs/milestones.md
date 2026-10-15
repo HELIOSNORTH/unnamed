@@ -47,9 +47,18 @@ Owner report (M1 Air): Beacon 19, Hill Station 16, Summit 10, Pylons 17, Launch 
 - Hill Station: shore lights shrink with distance. Summit: stronger, denser ground sparkle.
 - SwiftShader ms/frame at 480×270 (noise ±10 %): Beacon 217, Hill Station 550, Summit 333, Pylons 167, Launch 667. Roughly unchanged, as expected: the changes target GPU texture bandwidth and cache behaviour, which SwiftShader does not model. Needs an owner re-measure on the M1.
 
-## M6 — Next candidates
+## M6 — Camera feel and resolution fallback (2026-10-15) ✅
 
-- Owner re-measure on the M1 Air. If Summit/Launch are still under 20 FPS: the next levers are SSAO at ¼ resolution and lighter mountain terrain meshes (sub-pixel triangles cause quad overshading).
+Owner report (M1 Air): Beacon 20, Hill Station 12, Summit 15, Pylons 17, Launch 9 FPS.
+- Automatic resolution fallback below 20 FPS: 1080p → 720p → 540p → 360p, per scene (engine.ts CVF).
+- Depth of field on distant objects and lights (round bokeh), per-scene focus distance.
+- Stars scintillate slightly. Summit glints are round in screen space (no more horizontal ovals).
+- Pylons lens flare reduced. Launch darker again (exposure 0.34). Summit fog volume back to ½ res.
+
+## M7 — Next candidates
+
+- Owner re-measure: which tier each scene settles at on the M1 Air.
+- If Hill Station settles low: lighter canopy grid (it is the densest mesh, 630k triangles).
 - Browser game: the scenes become levels (owner will specify). Runtime LOD for trees and terrain once the camera moves freely.
 - Listening pass on headphones and speakers; adjust per-voice levels.
 - Drifting low cloud sheets on Hill Station.

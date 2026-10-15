@@ -15,6 +15,7 @@ export interface EngineStats {
 	fps: number;
 	frameMs: number;
 	renderScale: number;
+	renderHeight: number | null;
 	drawCalls: number;
 	triangles: number;
 	geometries: number;
@@ -25,6 +26,10 @@ export interface EngineStats {
 
 const FADE_OUT_S = 1.1;
 const FADE_IN_S = 2.6;
+const TIER_HEIGHTS = [Infinity, 1080, 720, 540, 360];
+const MIN_FPS = 20;
+const SETTLE_MS = 1000;
+const WINDOW_MS = 2000;
 
 export class Engine {
 	readonly renderer: WebGLRenderer;
@@ -41,8 +46,12 @@ export class Engine {
 	private last = 0;
 	private time = 0;
 	private canvasSize = new Vector2();
-	private scale = 1;
-	private maxScale = 1;
+	private tier = 0;
+	private tierByScene = new Map<number, number>();
+	private fixedResolution = false;
+	private windowMs = -SETTLE_MS;
+	private windowFrames = 0;
+	private renderSize = new Vector2(1, 1);
 	private lastStats: EngineStats | null = null;
 	private lastBuildMs = 0;
 	private fpsAvg = 60;
@@ -58,8 +67,6 @@ export class Engine {
 		this.renderer.info.autoReset = false;
 		this.pipeline = new Pipeline(this.renderer);
 		this.shadows = new ShadowMap(this.renderer.extensions.has('OES_texture_float_linear'));
-		this.maxScale = window.devicePixelRatio || 1;
-		this.scale = this.maxScale;
 		canvas.addEventListener('webglcontextlost', (e) => {
 			e.preventDefault();
 			this.stop();
@@ -97,6 +104,7 @@ export class Engine {
 	}
 
 	jump(i: number, time: number): void {
+		this.fixedResolution = true;
 		this.swapTo(i);
 		this.phase = 'idle';
 		this.fade = 1;
@@ -111,6 +119,9 @@ export class Engine {
 		this.current = i;
 		this.pending = -1;
 		const b = this.ensure(i);
+		this.tier = this.fixedResolution ? 0 : (this.tierByScene.get(i) ?? 0);
+		this.resetWindow();
+		this.applyScale();
 		this.pipeline.setScene(b.grade, b.atmos, b.volume, b.ao);
 		if (b.shadow) this.shadows.render(this.renderer, b.scene, b.atmos, b.shadow);
 		this.rig.fit(this.camera, b.shot, this.canvasSize.x / this.canvasSize.y);
@@ -121,8 +132,6 @@ export class Engine {
 		const w = Math.max(1, this.canvas.clientWidth);
 		const h = Math.max(1, this.canvas.clientHeight);
 		const dpr = window.devicePixelRatio || 1;
-		this.maxScale = dpr;
-		this.scale = dpr;
 		this.canvasSize.set(Math.round(w * dpr), Math.round(h * dpr));
 		this.renderer.setPixelRatio(1);
 		this.renderer.setSize(this.canvasSize.x, this.canvasSize.y, false);
@@ -132,9 +141,11 @@ export class Engine {
 	}
 
 	private applyScale(): void {
-		const k = this.scale / this.maxScale;
+		const k = Math.min(TIER_HEIGHTS[this.tier] / this.canvasSize.y, 1);
 		const rw = Math.max(1, Math.round(this.canvasSize.x * k));
 		const rh = Math.max(1, Math.round(this.canvasSize.y * k));
+		if (rw === this.renderSize.x && rh === this.renderSize.y) return;
+		this.renderSize.set(rw, rh);
 		this.pipeline.setSize(rw, rh);
 		viewport.resolution.value.set(rw, rh);
 		viewport.pxScale.value = rw / this.canvas.clientWidth;
@@ -175,6 +186,7 @@ export class Engine {
 			if (this.fade >= 1) this.phase = 'idle';
 		}
 		if (this.current < 0) return;
+		if (this.phase === 'idle') this.adaptResolution(dtMs);
 		const b = this.built.get(this.current)!;
 		const t = this.time;
 		const w = b.windiness * (0.5 + 0.38 * noise1(t * 0.055, 1) + 0.22 * noise1(t * 0.16, 2) + 0.12 * noise1(t * 0.47, 3));
@@ -188,6 +200,26 @@ export class Engine {
 		this.pipeline.render(b.scene, this.camera, t, eased, this.canvasSize);
 	}
 
+	private resetWindow(): void {
+		this.windowMs = -SETTLE_MS;
+		this.windowFrames = 0;
+	}
+
+	private adaptResolution(dtMs: number): void {
+		if (this.fixedResolution) return;
+		this.windowMs += dtMs;
+		if (this.windowMs <= 0) return;
+		this.windowFrames++;
+		if (this.windowMs < WINDOW_MS) return;
+		const fps = (this.windowFrames * 1000) / this.windowMs;
+		this.resetWindow();
+		if (fps >= MIN_FPS) return;
+		while (this.tier < TIER_HEIGHTS.length - 1 && TIER_HEIGHTS[this.tier] >= this.renderSize.y) this.tier++;
+		if (TIER_HEIGHTS[this.tier] >= this.renderSize.y) return;
+		this.tierByScene.set(this.current, this.tier);
+		this.applyScale();
+	}
+
 	private recordStats(dtMs: number): void {
 		const info = this.renderer.info;
 		const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
@@ -195,7 +227,8 @@ export class Engine {
 		this.lastStats = {
 			fps: this.fpsAvg,
 			frameMs: dtMs,
-			renderScale: this.scale / this.maxScale,
+			renderScale: this.renderSize.y / this.canvasSize.y,
+			renderHeight: this.tier > 0 ? this.renderSize.y : null,
 			drawCalls: info.render.calls,
 			triangles: info.render.triangles,
 			geometries: info.memory.geometries,

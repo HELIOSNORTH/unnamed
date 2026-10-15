@@ -168,7 +168,7 @@ export function buildPylons(): BuiltScene {
 		town.push({ p: new Vector3(x, height(x, z) + 2 + rand() * 8, z), color: [col.r * k, col.g * k, col.b * k], size: 2, twinkle: 0.4 });
 	}
 	addPoints(scene, atmos, town, 0.6);
-	const updateSprites = addLightSprites(scene, atmos, lights, 0.35, 0.045);
+	const updateSprites = addLightSprites(scene, atmos, lights, 0.25, 0.035);
 
 	const camPos = new Vector3(-1.5, height(-1.5, 0) + 0.9, 0.5);
 	const target = new Vector3(3.5, 23, -22);
@@ -192,10 +192,11 @@ export function buildPylons(): BuiltScene {
 			grain: 0.032,
 			vignette: 0.65,
 			aberration: 0.012,
-			flare: 0.04,
-			streak: 0.05,
+			flare: 0.008,
+			streak: 0.012,
 			streakTint: rgb(1, 0.9, 0.8),
-			dirt: 1.05
+			dirt: 0.6,
+			dof: { focus: 30, strength: 2 }
 		},
 		update: (_t, levels) => updateSprites(levels)
 	};
